@@ -39,6 +39,7 @@ struct EigenEnvironment {
   };
   struct Task {
     std::unique_ptr<TaskImpl> f;
+    int64 cost = 0;
   };
 
   Env* const env_;
@@ -62,18 +63,24 @@ struct EigenEnvironment {
     });
   }
 
-  Task CreateTask(std::function<void()> f) {
+  Task CreateTask(std::function<void()> f, int64 cost = 0) {
     uint64 id = 0;
     if (tracing::EventCollector::IsEnabled()) {
       id = tracing::GetUniqueArg();
       tracing::RecordEvent(tracing::EventCategory::kScheduleClosure, id);
     }
+
+    /*
+    Task t;
+    t.f = std::unique_ptr<TaskImpl>(new TaskImpl{std::move(f),Context(ContextKind::kThread),id,});
+    t.cost = cost;
+    return t;*/
     return Task{
         std::unique_ptr<TaskImpl>(new TaskImpl{
             std::move(f),
             Context(ContextKind::kThread),
             id,
-        }),
+        }), cost
     };
   }
 
@@ -111,6 +118,15 @@ ThreadPool::ThreadPool(thread::ThreadPoolInterface* user_threadpool) {
 }
 
 ThreadPool::~ThreadPool() {}
+
+void ThreadPool::CostSchedule(std::function<void()> fn, int64 cost) {
+  CHECK(fn != nullptr);
+  if (cost < 1) {
+    underlying_threadpool_->Schedule(std::move(fn));
+  } else {
+    underlying_threadpool_->Schedule(std::move(fn), cost);
+  }
+}
 
 void ThreadPool::Schedule(std::function<void()> fn) {
   CHECK(fn != nullptr);

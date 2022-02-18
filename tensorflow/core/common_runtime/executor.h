@@ -114,7 +114,9 @@ class Executor {
 
     typedef std::function<void()> Closure;
     typedef std::function<void(Closure)> Runner;
+    typedef std::function<void(Closure, int64)> CostRunner;
     Runner runner = nullptr;
+    CostRunner cost_runner = nullptr;
 
     // If true, all kernels will be treated as "inexpensive", and hence executed
     // on the scheduling thread.

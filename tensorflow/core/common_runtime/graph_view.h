@@ -59,6 +59,8 @@ struct ControlEdgeInfo {
 struct NodeItem {
   // The index of this node's item in its GraphView.
   int node_id = -1;
+  // The max total cost of one graph path, which from current node to the sink node.
+  int64 accumulative_cost = 0;
 
   // Cached attributes of this node for fast lookup.
   bool kernel_is_async : 1;     // True iff kernel->AsAsync() != nullptr

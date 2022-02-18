@@ -17,6 +17,7 @@ limitations under the License.
 
 #include <atomic>
 #include <memory>
+#include <queue>
 #include <vector>
 
 #include "absl/memory/memory.h"
@@ -142,7 +143,8 @@ class ExecutorImpl : public Executor {
 
   Status Initialize() {
     TF_RETURN_IF_ERROR(immutable_state_.Initialize());
-    kernel_stats_.Initialize(immutable_state_.graph_view());
+    kernel_stats_.Initialize(immutable_state_.graph_view(),
+                             immutable_state_.graph());
     return Status::OK();
   }
 
@@ -155,17 +157,26 @@ class ExecutorImpl : public Executor {
   // Stores execution time information about the kernels in an executor's graph.
   class KernelStats {
    public:
-    KernelStats() = default;
+    KernelStats() : counter_(0), wait_to_collect_(true),
+        collect_op_cost_(false) {}
 
-    void Initialize(const GraphView& gview) {
+    void Initialize(const GraphView& gview,
+                    const Graph* g) {
+      gv_ = const_cast<GraphView*>(&gview);
+      g_ = const_cast<Graph*>(g);
+
+      nodes_count_ = gview.num_nodes();
       is_expensive_.resize(gview.num_nodes());
       cost_estimates_ =
           absl::make_unique<std::atomic_uint_fast64_t[]>(gview.num_nodes());
+      immutable_avg_cost_ =
+          absl::make_unique<std::atomic_int64_t[]>(gview.num_nodes());
       for (int32_t i = 0; i < gview.num_nodes(); ++i) {
         if (gview.node(i)) {
           is_expensive_[i] =
               gview.node(i)->kernel && gview.node(i)->kernel->IsExpensive();
           cost_estimates_[i] = kInitialCostEstimateCycles;
+          immutable_avg_cost_[i] = 0;
         }
       }
     }
@@ -201,6 +212,112 @@ class ExecutorImpl : public Executor {
       cost_estimate.store(new_estimate, std::memory_order_relaxed);
     }
 
+    void CalculateAccumulativeCost() {
+      // find leaf nodes
+      std::queue<Node*> q;
+      std::unordered_map<Node*, int> pending_childs;
+      for (auto n : g_->nodes()) {
+        pending_childs[n] = n->out_edges().size();
+        if (n->out_edges().empty()) {
+          q.push(n);
+        }
+      }
+
+      std::vector<int64> immutable_accumulative_cost;
+      immutable_accumulative_cost.resize(nodes_count_);
+      while (!q.empty()) {
+        Node* curr = q.front();
+        q.pop();
+        immutable_accumulative_cost[curr->id()] =
+            immutable_avg_cost_[curr->id()];
+        for (auto edge : curr->out_edges()) {
+          int dest_id = edge->dst()->id();
+          int64 tmp = immutable_avg_cost_[curr->id()] +
+              immutable_accumulative_cost[dest_id];
+          if (immutable_accumulative_cost[curr->id()] < tmp) {
+            immutable_accumulative_cost[curr->id()] = tmp;
+          }
+        }
+
+        for (auto edge : curr->in_edges()) {
+          if (--pending_childs[edge->src()] == 0) {
+            q.push(edge->src());
+          }
+        }
+      }
+
+      for (size_t i = 0; i < nodes_count_; ++i) {
+        if (gv_->node(i)) {
+          gv_->node(i)->accumulative_cost = immutable_accumulative_cost[i];
+        }
+      }
+    }
+
+    void StopCollection() {
+      collect_op_cost_ = false;
+      // calculate average cost
+      auto total_count = end_step_ - start_step_;
+      for (size_t i = 0; i < nodes_count_; ++i) {
+        immutable_avg_cost_[i] = immutable_avg_cost_[i] / total_count;
+      }
+
+      // calculate accumulative op cost
+      CalculateAccumulativeCost();
+
+      cost_data_ready_ = true;
+    }
+
+    void IncrStep() {
+      if (collect_op_cost_) {
+        auto current = counter_.fetch_add(1);
+        // TODO: user pass param here
+        if (current == end_step_) {
+          StopCollection();
+        }
+        return;
+      }
+
+      if (!wait_to_collect_) return;
+      auto current = counter_.fetch_add(1);
+      // TODO: user pass param here
+      if (current == start_step_) {
+        collect_op_cost_ = true;
+        wait_to_collect_ = false;
+      } else if (current == end_step_) {
+        // attention the small probability event caused by concurrency
+        StopCollection();
+      }
+    }
+
+    int64 GetTimestamp() {
+      if (!collect_op_cost_) {
+        return 0;
+      }
+      return Env::Default()->NowNanos();
+    }
+
+    void SetOpCost(const NodeItem* item, int64 cost) {
+      if (collect_op_cost_) {
+        if (item->node_id >= nodes_count_) {
+          LOG(FATAL) << "Item node is exceed nodes_count_, "
+                     << item->node_id << " VS " << nodes_count_;
+        }
+        immutable_avg_cost_[item->node_id] += cost;
+      }
+    }
+
+    int64 GetOpCost(const NodeItem* item) {
+      if (item->node_id >= nodes_count_) {
+        LOG(FATAL) << "Item node is exceed nodes_count_, "
+                   << item->node_id << " VS " << nodes_count_;
+      }
+      return immutable_avg_cost_[item->node_id];
+    }
+
+    bool CostDataReady() const {
+      return cost_data_ready_;
+    }
+
    private:
     // Initial time (in CPU cycles) we expect an operation to take.  Used to
     // determine whether an operation should be place in a threadpool.
@@ -210,8 +327,19 @@ class ExecutorImpl : public Executor {
     static constexpr uint64 kCostDecay = 10;
 
     std::vector<bool> is_expensive_;
-    // std::unique_ptr<std::atomic<bool>[]> is_expensive_;
     std::unique_ptr<std::atomic_uint_fast64_t[]> cost_estimates_;
+
+    static constexpr int64 start_step_ = 100;
+    static constexpr int64 end_step_ = 200;
+    std::atomic<bool> wait_to_collect_;
+    std::atomic<bool> collect_op_cost_;
+    bool cost_data_ready_ = false;
+    std::atomic<int64_t> counter_;
+    int64_t nodes_count_ = 0;
+    std::unique_ptr<std::atomic_int64_t[]> immutable_avg_cost_;
+
+    GraphView* gv_ = nullptr; // not owned
+    Graph* g_ = nullptr; // not owned
   };
 
   ImmutableExecutorState immutable_state_;
@@ -290,6 +418,7 @@ class ExecutorState {
 
   // Process a ready node in current thread.
   void Process(TaggedNode node, int64_t scheduled_nsec);
+  void BatchProcess(std::vector<TaggedNode> nodes, int nodes_count, int64_t scheduled_nsec);
 
   Status ProcessSync(const NodeItem& item, OpKernelContext::Params* params,
                      EntryVector* outputs, NodeExecStatsInterface* stats);
@@ -326,16 +455,22 @@ class ExecutorState {
   //
   // REQUIRES: `!ready->empty()`.
   void ScheduleReady(TaggedNodeSeq* ready, TaggedNodeReadyQueue* inline_ready);
+  static bool SortTaggedNodeSeqFunc(const TaggedNode& n1, const TaggedNode& n2);
 
   // A wrapper for runner_ to keep track of the pending queue length. Op
   // execution should dispatch work using this function instead of using runner_
   // directly.
   template <typename Closure>
-  void RunTask(Closure&& c);
+  void RunTask(Closure&& c, int64 cost);
 
   // Clean up when this executor is done.
   void Finish();
   void ScheduleFinish();
+
+  void IncrStep();
+  ExecutorImpl::KernelStats* GetKernelStats() const {
+    return kernel_stats_;
+  }
 
   // Contains the device context assigned by the device at the beginning of a
   // step.
@@ -377,7 +512,8 @@ class ExecutorState {
   CancellationManager* cancellation_manager_;
   // If not null, use this device to schedule intra-op operation
   std::unique_ptr<DeviceBase> user_device_;
-  Executor::Args::Runner runner_;
+  Executor::Args::Runner runner_ = nullptr;
+  Executor::Args::CostRunner cost_runner_ = nullptr;
   bool sync_on_finish_;
   const bool run_all_kernels_inline_;
 
@@ -428,10 +564,15 @@ ExecutorState<PropagatorStateType>::ExecutorState(
       kernel_stats_(kernel_stats),
       cancellation_manager_(args.cancellation_manager),
       runner_(args.runner),
+      cost_runner_(args.cost_runner),
       sync_on_finish_(args.sync_on_finish),
       run_all_kernels_inline_(args.run_all_kernels_inline),
       propagator_(immutable_state, step_id_, vlog_),
       num_outstanding_ops_(0) {
+  if (args.cost_runner == nullptr) {
+    LOG(FATAL) << "cost_runner is nullptr, please check the args.";
+  }
+
   if (args.user_intra_op_threadpool != nullptr) {
     Device* device = immutable_state_.params().device;
     user_device_ = RenamedDevice::NewRenamedDevice(
@@ -449,7 +590,7 @@ ExecutorState<PropagatorStateType>::~ExecutorState() {
 
 template <class PropagatorStateType>
 template <typename Closure>
-void ExecutorState<PropagatorStateType>::RunTask(Closure&& c) {
+void ExecutorState<PropagatorStateType>::RunTask(Closure&& c, int64 cost) {
   // Align the atomic variables at 64 bytes to avoid false-sharing, assuming the
   // cacheline size is 64 bytes or smaller.
   alignas(64) static std::atomic<int64_t> num_enqueue_ops{0};
@@ -464,14 +605,16 @@ void ExecutorState<PropagatorStateType>::RunTask(Closure&& c) {
 
   // mutable is needed because std::forward<Closure> in the lambda body may move
   // the Closure `c`.
-  runner_([c = std::forward<Closure>(c)]() mutable {
+  cost_runner_([c = std::forward<Closure>(c)]() mutable {
     num_dequeue_ops.fetch_add(1, std::memory_order_relaxed);
     std::forward<Closure>(c)();
-  });
+  }, cost);
 }
 
 template <class PropagatorStateType>
 void ExecutorState<PropagatorStateType>::RunAsync(Executor::DoneCallback done) {
+  IncrStep();
+
   TaggedNodeSeq ready;
 
   // Ask the device to fill in the device context map.
@@ -569,6 +712,7 @@ Status ExecutorState<PropagatorStateType>::ProcessSync(
   Status s;
   OpKernelContext ctx(params, item.num_outputs);
   nodestats::SetOpStart(stats);
+  auto op_start_ts = kernel_stats_->GetTimestamp();
 
   OpKernel* op_kernel = item.kernel;
   Device* device = immutable_state_.params().device;
@@ -607,6 +751,10 @@ Status ExecutorState<PropagatorStateType>::ProcessSync(
   } else {
     device->Compute(op_kernel, &ctx);
   }
+
+  auto op_end_ts = kernel_stats_->GetTimestamp();
+  kernel_stats_->SetOpCost(&item, op_end_ts - op_start_ts);
+
   nodestats::SetOpEnd(stats);
   if (outputs->size() < item.num_outputs) outputs->resize(item.num_outputs);
   s = ProcessOutputs(item, &ctx, outputs->data(), stats);
@@ -624,12 +772,15 @@ void ExecutorState<PropagatorStateType>::ProcessAsync(
   AsyncState* state =
       new AsyncState(params, tagged_node, &item, first_input, stats);
 
-  auto done = [this, state]() {
+  auto op_start_ts = kernel_stats_->GetTimestamp();
+  auto done = [this, state, op_start_ts]() {
     Device* device = immutable_state_.params().device;
     NodeExecStatsInterface* stats = state->stats;  // Shorthand
     Entry* first_input = state->first_input;       // Shorthand
 
     nodestats::SetOpEnd(stats);
+    auto op_end_ts = this->GetKernelStats()->GetTimestamp();
+    this->GetKernelStats()->SetOpCost(state->item, op_end_ts - op_start_ts);
     EntryVector outputs(state->item->num_outputs);
     Status s = ProcessOutputs(*state->item, &state->ctx, outputs.data(), stats);
     nodestats::SetMemory(stats, &state->ctx);
@@ -694,8 +845,17 @@ void ExecutorState<PropagatorStateType>::ProcessConstTensor(
 }
 
 template <class PropagatorStateType>
-void ExecutorState<PropagatorStateType>::Process(TaggedNode tagged_node,
-                                                 int64_t scheduled_nsec) {
+void ExecutorState<PropagatorStateType>::Process(
+    TaggedNode tagged_node, int64_t scheduled_nsec) {
+  std::vector<TaggedNode> nodes;
+  nodes.push_back(tagged_node);
+  BatchProcess(nodes, 1, scheduled_nsec);
+}
+
+template <class PropagatorStateType>
+void ExecutorState<PropagatorStateType>::BatchProcess(std::vector<TaggedNode> nodes,
+                                                      int nodes_count,
+                                                      int64_t scheduled_nsec) {
   WithContext wc(context_);
   TaggedNodeSeq ready;
   TaggedNodeReadyQueue inline_ready;
@@ -764,7 +924,12 @@ void ExecutorState<PropagatorStateType>::Process(TaggedNode tagged_node,
   EntryVector outputs(1);
 
   bool completed = false;
-  inline_ready.push_back(tagged_node);
+
+  for (size_t i = 0; i < nodes_count; ++i) {
+    inline_ready.push_back(nodes[i]);
+  }
+
+  TaggedNode tagged_node;
   while (!inline_ready.empty()) {
     tagged_node = inline_ready.front();
     inline_ready.pop_front();
@@ -1169,6 +1334,13 @@ bool ExecutorState<PropagatorStateType>::NodeDone(
 }
 
 template <class PropagatorStateType>
+bool ExecutorState<PropagatorStateType>::SortTaggedNodeSeqFunc(
+    const TaggedNode& n1, const TaggedNode& n2) {
+  return n1.get_node_item().accumulative_cost >
+      n2.get_node_item().accumulative_cost;
+}
+
+template <class PropagatorStateType>
 void ExecutorState<PropagatorStateType>::ScheduleReady(
     TaggedNodeSeq* ready, TaggedNodeReadyQueue* inline_ready) {
   DCHECK(!ready->empty());
@@ -1188,33 +1360,109 @@ void ExecutorState<PropagatorStateType>::ScheduleReady(
         for (auto& tagged_node : ready) {
           Process(tagged_node, scheduled_nsec);
         }
-      });
+      }, 0);
     } else {
       for (auto& tagged_node : *ready) {
         inline_ready->push_back(tagged_node);
       }
     }
   } else {
+    bool cost_data_ready = kernel_stats_->CostDataReady();
+
     const TaggedNode* curr_expensive_node = nullptr;
+    int64 curr_accumulative_cost = 0;
     if (inline_ready == nullptr) {
       // Schedule to run all the ready ops in thread pool.
-      for (auto& tagged_node : *ready) {
-        RunTask([=]() { Process(tagged_node, scheduled_nsec); });
+      if (cost_data_ready) {
+        for (auto& tagged_node : *ready) {
+          RunTask([=]() { Process(tagged_node, scheduled_nsec); },
+                  kernel_stats_->GetOpCost(&(tagged_node.get_node_item())));
+        }
+      } else {
+        for (auto& tagged_node : *ready) {
+          RunTask([=]() { Process(tagged_node, scheduled_nsec); }, 0);
+        }
       }
     } else {
-      for (auto& tagged_node : *ready) {
-        const NodeItem& item = *tagged_node.node_item;
-        if (tagged_node.get_is_dead() || !kernel_stats_->IsExpensive(item)) {
-          // Inline this inexpensive node.
-          inline_ready->push_back(tagged_node);
-        } else {
-          if (curr_expensive_node) {
-            // Dispatch to another thread since there is plenty of work to
-            // do for this thread.
-            RunTask(std::bind(&ExecutorState::Process, this,
-                              *curr_expensive_node, scheduled_nsec));
+      if (cost_data_ready) {
+        // sort ready nodes
+        // key path priority schedule
+        std::sort(ready->begin(), ready->end(), SortTaggedNodeSeqFunc);
+
+        // TODO: 50us or 100 ops for example
+        // Use cost model here
+        static int quota = 5000;
+        static int max_ops_count = 100;
+        int64 batch_ops_cost = 0;
+        bool new_batch = false;
+        std::vector<TaggedNode> new_batch_ops;
+        new_batch_ops.resize(max_ops_count);
+        int n_new_batch_ops = 0;
+        for (auto& tagged_node : *ready) {
+          const NodeItem& item = *tagged_node.node_item;
+          if (tagged_node.get_is_dead() || !kernel_stats_->IsExpensive(item)) {
+            // Inline this inexpensive node.
+            if (!new_batch) {
+              inline_ready->push_back(tagged_node);
+            } else {
+              new_batch_ops[n_new_batch_ops] = tagged_node;
+              n_new_batch_ops++;
+            }
+            batch_ops_cost += kernel_stats_->GetOpCost(&item);
+            if (batch_ops_cost > quota || n_new_batch_ops == max_ops_count) {
+              new_batch = true;
+              if (n_new_batch_ops > 0) {
+                RunTask(std::bind(&ExecutorState::BatchProcess, this,
+                                  new_batch_ops, n_new_batch_ops,
+                                  scheduled_nsec), batch_ops_cost);
+                n_new_batch_ops = 0;
+              }
+              batch_ops_cost = 0;
+            }
+          } else {
+            // TODO: expensive node also be considred batching.
+            //
+            if (curr_expensive_node) {
+              if (curr_accumulative_cost < item.accumulative_cost) {
+                // Dispatch to another thread since there is plenty of work to
+                // do for this thread.
+                RunTask(std::bind(&ExecutorState::Process, this,
+                                  *curr_expensive_node, scheduled_nsec),
+                        kernel_stats_->GetOpCost(&(curr_expensive_node->get_node_item())));
+                curr_accumulative_cost = item.accumulative_cost;
+                curr_expensive_node = &tagged_node;
+              } else {
+                RunTask(std::bind(&ExecutorState::Process, this,
+                                  tagged_node, scheduled_nsec),
+                        kernel_stats_->GetOpCost(&item));
+              }
+            } else {
+              curr_expensive_node = &tagged_node;
+              curr_accumulative_cost =
+                  tagged_node.get_node_item().accumulative_cost;
+            }
           }
-          curr_expensive_node = &tagged_node;
+        }
+        if (n_new_batch_ops > 0) {
+          RunTask(std::bind(&ExecutorState::BatchProcess, this,
+                            new_batch_ops, n_new_batch_ops,
+                            scheduled_nsec), batch_ops_cost);
+        }
+      } else {
+        for (auto& tagged_node : *ready) {
+          const NodeItem& item = *tagged_node.node_item;
+          if (tagged_node.get_is_dead() || !kernel_stats_->IsExpensive(item)) {
+            // Inline this inexpensive node.
+            inline_ready->push_back(tagged_node);
+          } else {
+            if (curr_expensive_node) {
+              // Dispatch to another thread since there is plenty of work to
+              // do for this thread.
+              RunTask(std::bind(&ExecutorState::Process, this,
+                                *curr_expensive_node, scheduled_nsec), 0);
+            }
+            curr_expensive_node = &tagged_node;
+          }
         }
       }
     }
@@ -1224,8 +1472,12 @@ void ExecutorState<PropagatorStateType>::ScheduleReady(
       } else {
         // There are inline nodes to run already. We dispatch this expensive
         // node to other thread.
+        int64 cost = 0;
+        if (cost_data_ready) {
+          cost = kernel_stats_->GetOpCost(&(curr_expensive_node->get_node_item()));
+        }
         RunTask(std::bind(&ExecutorState::Process, this, *curr_expensive_node,
-                          scheduled_nsec));
+                          scheduled_nsec), cost);
       }
     }
   }
@@ -1250,6 +1502,11 @@ void ExecutorState<PropagatorStateType>::ScheduleFinish() {
   // there aren't any deferred ops, or in the dec_num_deferred_ops_function if
   // there are deferred ops.
   Finish();
+}
+
+template <class PropagatorStateType>
+void ExecutorState<PropagatorStateType>::IncrStep() {
+  kernel_stats_->IncrStep();
 }
 
 template <class PropagatorStateType>
