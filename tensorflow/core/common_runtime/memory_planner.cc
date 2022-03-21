@@ -23,6 +23,8 @@ MemoryPlanner::MemoryPlanner() :
     stop_step_(DEFAULT_STOP_STATISTIC_STEP) {
   InitPolicy();
   InitStepInfo();
+  LOG(INFO) << "==================> START_STEP: " << start_step_
+	  << ", STOP_STEP: " << stop_step_;
 }
 
 MemoryPlanner::~MemoryPlanner() {
@@ -69,12 +71,17 @@ void MemoryPlanner::Reset() {
 }
 
 void MemoryPlanner::StartCollect() {
+//static int iii = 0;
+//if (iii++ == 0) {
+//LOG(INFO) << "=======================> MemoryPlanner::StartCollect";
+//}
   auto current = counter_.fetch_add(1);
   if (current == start_step_) {
     is_stats_ = true;
   } else if (current == stop_step_) {
     is_stats_ = false;
     CollectDone();
+LOG(INFO) << "=============================> CCCCCCCCCCCCllect done!";
   }
 }
 

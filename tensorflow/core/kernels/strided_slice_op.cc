@@ -91,6 +91,11 @@ class StridedSliceOp : public OpKernel {
   }
 
   void Compute(OpKernelContext* context) override {
+bool looog = false;
+if (name().find("models/sparse_inputs/embedding_lookup_sparse_5") != std::string::npos) {
+//looog = true;
+}
+
     TensorShape processing_shape, final_shape;
     bool is_identity = true;
     bool slice_dim0 = true;
@@ -115,6 +120,11 @@ class StridedSliceOp : public OpKernel {
       OP_REQUIRES(context, tmp.CopyFrom(input, final_shape),
                   errors::Internal("Copy failed"));
       context->set_output(0, tmp);
+   if (looog) {
+	  LOG(ERROR) << "============> StridedSlice: " << name() << ", input[0]: " << context->input(0).DebugString(3000)
+<< ", input[1]: " << context->input(1).DebugString() << ", input[2]: " << context->input(2).DebugString()
+<< ", input[3]: " << context->input(3).DebugString() << ", tmp: " << tmp.DebugString();
+}
       return;
     }
 
@@ -130,6 +140,12 @@ class StridedSliceOp : public OpKernel {
       Tensor tmp;
       OP_REQUIRES(context, tmp.CopyFrom(slice, final_shape),
                   errors::Internal("Copy failed"));
+if (looog) {
+	  LOG(ERROR) << "============> StridedSlice: " << name() << ", input[0]: " << context->input(0).DebugString(3000)
+<< ", input[1]: " << context->input(1).DebugString() << ", input[2]: " << context->input(2).DebugString()
+<< ", input[3]: " << context->input(3).DebugString() << ", tmp: " << tmp.DebugString();
+    }
+
       context->set_output(0, tmp);
       return;
     }
@@ -151,6 +167,11 @@ class StridedSliceOp : public OpKernel {
           final_shape.dims() == 2 && new_axis_mask == 0) {
         MemCpyFunctor<T> functor;
         if (functor.Copy(input, begin, end, result)) {
+if (looog) {
+	  LOG(ERROR) << "============> StridedSlice: " << name() << ", input[0]: " << context->input(0).DebugString(3000)
+<< ", input[1]: " << context->input(1).DebugString() << ", input[2]: " << context->input(2).DebugString()
+<< ", input[3]: " << context->input(3).DebugString() << ", tmp: " << result->DebugString();
+  }
           return;
         }
       }
@@ -160,6 +181,10 @@ class StridedSliceOp : public OpKernel {
     HandleStridedSliceCase<Device, T, NDIM>(context, begin, end, strides,      \
                                             processing_shape, is_simple_slice, \
                                             result);                           \
+if (looog) { \
+	  LOG(ERROR) << "============> StridedSlice: " << name() << ", input[0]: " << context->input(0).DebugString(3000) \
+<< ", input[1]: " << context->input(1).DebugString() << ", input[2]: " << context->input(2).DebugString() \
+<< ", input[3]: " << context->input(3).DebugString() << ", tmp: " << result->DebugString(); } \
     return;                                                                    \
   }
 

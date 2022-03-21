@@ -16,6 +16,8 @@ limitations under the License.
 #include "tensorflow/python/client/tf_session_helper.h"
 
 #include <cstring>
+#include <sys/time.h>
+#include <time.h>
 
 #include "tensorflow/c/c_api.h"
 #include "tensorflow/c/c_api_internal.h"
@@ -202,6 +204,16 @@ void TF_SessionMakeCallable(TF_Session* session,
                             const TF_Buffer* callable_options,
                             int64_t* out_handle, TF_Status* status) {
   MakeCallableHelper(session->session, callable_options, out_handle, status);
+}
+
+namespace {
+  uint64_t CNowNanos() {
+    static constexpr uint64_t kSecondsToNanos = 1000ULL * 1000ULL * 1000ULL;
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (static_cast<uint64_t>(ts.tv_sec) * kSecondsToNanos +
+            static_cast<uint64_t>(ts.tv_nsec));
+  }
 }
 
 namespace {
@@ -396,6 +408,7 @@ void TF_SessionRun_wrapper_helper(TF_Session* session, const char* handle,
   // Clear up any unused memory leftover from previous runs
   ClearDecrefCache();
 
+//int64_t start = CNowNanos();
   // Call TF_SessionRun() (and release GIL during execution)
   Py_BEGIN_ALLOW_THREADS;
   if (handle == nullptr) {
@@ -409,6 +422,8 @@ void TF_SessionRun_wrapper_helper(TF_Session* session, const char* handle,
                    outputs.size(), targets.data(), targets.size(), out_status);
   }
   Py_END_ALLOW_THREADS;
+//int64_t end = CNowNanos();
+//LOG(INFO) << "======================> TF_SessionRun_wrapper_helper:TF_SessionRun " << 1.0*(end - start)/1000.0/1000.0;
 
   // Create scoped containers for output tensors
   std::vector<Safe_TF_TensorPtr> output_vals_safe;
@@ -443,12 +458,16 @@ void TF_SessionRun_wrapper(TF_Session* session, const TF_Buffer* run_options,
                            const std::vector<TF_Operation*>& targets,
                            TF_Buffer* run_metadata, TF_Status* out_status,
                            std::vector<PyObject*>* py_outputs) {
+//int64_t start = 0, end = 0;
+//start = CNowNanos();
   TF_SessionRun_wrapper_helper(session, nullptr, run_options, inputs,
                                input_ndarrays, outputs, targets, run_metadata,
                                out_status, py_outputs);
   // Release any unused ndarray references (see memory management comment in
   // TF_SessionRun_wrapper_helper)
   ClearDecrefCache();
+//end = CNowNanos();
+//LOG(INFO) << "======================> C++:TF_SessionRun_wrapper: " << 1.0*(end - start)/1000.0/1000.0;
 }
 
 string EqualGraphDefWrapper(const string& actual, const string& expected) {

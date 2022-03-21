@@ -71,6 +71,10 @@ class DeserializeSparseOp : public OpKernel {
       context->set_output(0, *output_indices);
       context->set_output(1, *output_values);
       context->set_output(2, *output_shape);
+      //LOG(ERROR) << "===========> DeserializeSparse: " << name() << ", input[0]: "<< context->input(0).DebugString()
+	   //   << ", output_indices: " << output_indices->DebugString()
+	//	  << ", output_values: " << output_values->DebugString()
+	//	  << ", output_shape: " << output_shape->DebugString();
       return;
     }
 
@@ -269,6 +273,11 @@ class DeserializeSparseOp : public OpKernel {
               context, errors::Unimplemented(
                            "DeserializeSparse Unhandled data type: ", dtype_));
       }
+
+ //     LOG(ERROR) << "===========> DeserializeSparse: " << name() << ", input[0]: "<< context->input(0).DebugString()
+	 //     << ", output_indices: " << output_indices->DebugString()
+	//	  << ", output_values: " << output_values->DebugString()
+	//	  << ", output_shape: " << output_shape->DebugString();
     }
   }
 

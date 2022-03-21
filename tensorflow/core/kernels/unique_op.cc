@@ -127,6 +127,8 @@ class UniqueOp : public OpKernel {
       for (auto it : uniq) {
         Tout(it.second) = it.first;
       }
+	  //LOG(ERROR) << "===============> Unique: " << name() << ", input: " << input.DebugString()
+	//	  << ", output[1]: " << idx->DebugString() << ", output[0]: " << output->DebugString();
     } else {
       // General implementation when unique is run over multiple elements.
       auto Tin = input.shaped<T, 3>(new_sizes);
@@ -178,6 +180,8 @@ class UniqueOp : public OpKernel {
       for (auto it : uniq) {
         Tout.chip(it.second, 1) = Tin.chip(it.first, 1);
       }
+	  //LOG(ERROR) << "===============> Unique: " << name() << ", input: " << input.DebugString()
+		//  << ", output[1]: " << idx->DebugString() << ", output[0]: " << output->DebugString(); 
     }
 
     if (num_outputs() > 2) {
@@ -190,6 +194,8 @@ class UniqueOp : public OpKernel {
       for (int64 i = 0; i < N; ++i) {
         count_output_vec(idx_vec(i))++;
       }
+//LOG(ERROR) << "===============> Unique: " << name() << ", output[2]: " << output->DebugString();
+
     }
   }
 };

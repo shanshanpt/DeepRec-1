@@ -33,7 +33,7 @@ namespace tensorflow {
 
 void Reshape(OpKernelContext *context, const Tensor &input_indices_in,
              const Tensor &input_shape_in, const Tensor &target_shape_in,
-             int output_indices_idx, int output_shape_idx) {
+             int output_indices_idx, int output_shape_idx, std::string kname) {
   OP_REQUIRES(context, TensorShapeUtils::IsMatrix(input_indices_in.shape()),
               errors::InvalidArgument(
                   "Input indices should be a matrix but received shape ",
@@ -84,6 +84,14 @@ void Reshape(OpKernelContext *context, const Tensor &input_indices_in,
                                 "input size for an empty tensor unless all "
                                 "specified input sizes are non-zero"));
     const int64 missing = dense_size / product;
+
+if (product * missing != dense_size) {
+//LOG(INFO) << "=================> Reshape error: " << kname
+ //   << ", input_indices_in: " << input_indices_in.DebugString()
+ //   << ", input_shape_in: " << input_shape_in.DebugString()
+   // << ", target_shape_in: " << target_shape_in.DebugString();
+}
+
     OP_REQUIRES(
         context, product * missing == dense_size,
         errors::InvalidArgument(
@@ -151,11 +159,18 @@ void Reshape(OpKernelContext *context, const Tensor &input_indices_in,
   for (int j = 0; j < output_shape.dims(); ++j) {
     output_shape_vec(j) = output_shape.dim_size(j);
   }
+    if (kname.find("models/sparse_inputs/Reshape") != std::string::npos ||
+        kname.find("PTAAAAAA") != std::string::npos ||
+	kname.find("PTBBBBBB") != std::string::npos) {
+//LOG(INFO) << "==================> SSSReshape: " << kname << ", result_shape: " << result_shape->DebugString()
+//	<< ", result_indices: " << result_indices->DebugString();
+    }
+
 }
 
 void Reshape(OpKernelContext *context, const Tensor &input_indices_in,
              const Tensor &input_shape_in, const Tensor &target_shape_in,
-             Tensor* result_indices, Tensor* result_shape) {
+             Tensor* result_indices, Tensor* result_shape, std::string kname) {
   OP_REQUIRES(context, TensorShapeUtils::IsMatrix(input_indices_in.shape()),
               errors::InvalidArgument(
                   "Input indices should be a matrix but received shape ",
@@ -204,6 +219,14 @@ void Reshape(OpKernelContext *context, const Tensor &input_indices_in,
                                 "input size for an empty tensor unless all "
                                 "specified input sizes are non-zero"));
     const int64 missing = dense_size / product;
+
+if (product * missing != dense_size) {
+//LOG(INFO) << "=================> Reshape error: " << kname
+//    << ", input_indices_in: " << input_indices_in.DebugString()
+  //  << ", input_shape_in: " << input_shape_in.DebugString()
+    //<< ", target_shape_in: " << target_shape_in.DebugString();
+}
+
     OP_REQUIRES(
         context, product * missing == dense_size,
         errors::InvalidArgument(

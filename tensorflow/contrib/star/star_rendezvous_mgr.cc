@@ -5,6 +5,7 @@
 #include "tensorflow/core/common_runtime/device_mgr.h"
 #include "tensorflow/core/common_runtime/dma_helper.h"
 #include "tensorflow/core/common_runtime/process_util.h"
+#include "tensorflow/core/distributed_runtime/request_id.h"
 #include "tensorflow/core/distributed_runtime/worker_interface.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/core/errors.h"
@@ -55,6 +56,7 @@ class StarRecvTensorCall : public BaseRecvTensorCall {
     done_ = std::move(done);
     req_.set_step_id(step_id);
     req_.set_rendezvous_key(key.data(), key.size());
+    req_.set_request_id(GetUniqueRequestId());
   }
 
   void Reset(WorkerCacheInterface* wc) {
@@ -99,6 +101,14 @@ class StarRecvTensorCall : public BaseRecvTensorCall {
     mutex_lock l(mu_);
     return status_;
   }
+
+  //void ReleaseWorker(WorkerCacheInterface* worker_cache) {
+  //  DCHECK_NE(static_cast<WorkerInterface*>(nullptr), wi_)
+  //      << "RpcRecvTensorCall::ReleaseWorker() called twice.";
+  //  worker_cache->ReleaseWorker(src_worker_, wi_);
+  //  wi_ = nullptr;
+  //  star_wi_ = nullptr;
+  //}
 
   const Tensor& tensor() const { return resp_.GetTensor(); }
   bool is_dead() const { return resp_.GetIsDead(); }
@@ -229,7 +239,7 @@ void StarRemoteRendezvous::RecvFromRemoteAsync(
 
   // Record "call" in active_ so that it can be aborted cleanly.
   RegisterCall(call, recv_args);
-  Ref();
+  //Ref();
   if (!call->status().ok()) {
     LOG(WARNING) << "Rendezvous has been aborted, ignore the rpc call."
                  << ", rendezvous key: " << parsed.FullKey()
@@ -238,10 +248,11 @@ void StarRemoteRendezvous::RecvFromRemoteAsync(
     session()->worker_cache->ReleaseWorker(call->src_worker_, call->wi_);
     call->wi_ = nullptr;
     get_call_freelist()->Release(call, session()->worker_cache.get());
-    Unref();
+    //Unref();
     return;
   }
 
+  Ref();
   // Start "call".
   call->Start([this, call]() {
     // Removes "call" from active_. Prevent StartAbort().
@@ -273,6 +284,7 @@ public:
     recv_args_ = recv_args;
     fuse_done_ = std::move(done);
     fuse_req_.set_step_id(step_id);
+    fuse_req_.set_request_id(GetUniqueRequestId());
 
     fuse_count_ = parsed_keys.size();
     for (int i = 0; i < fuse_count_; ++i) {
@@ -462,7 +474,7 @@ void StarRemoteRendezvous::FuseRecvFromRemoteAsync(
 
   // Record "call" in active_ so that it can be aborted cleanly.
   RegisterCall(call, recv_args);
-  Ref();
+  //Ref();
   if (!s.ok()) {
     LOG(WARNING) << "Rendezvous has been aborted, ignore the rpc call."
                  << ", rendezvous key: " << parsed_keys[0].FullKey()
@@ -473,10 +485,11 @@ void StarRemoteRendezvous::FuseRecvFromRemoteAsync(
     session()->worker_cache->ReleaseWorker(call->src_worker_, call->wi_);
     call->wi_ = nullptr;
     get_fuse_call_freelist()->Release(call, session()->worker_cache.get());
-    Unref();
+    //Unref();
     return;
   }
 
+  Ref();
   // Start "call".
   call->Start([this, call]() {
     // Removes "call" from active_. Prevent StartAbort().

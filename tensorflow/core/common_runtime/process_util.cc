@@ -74,6 +74,7 @@ int32 DefaultNumInterOpThreads() {
 static thread::ThreadPool* InitComputePool(const SessionOptions& options) {
   int32 inter_op_parallelism_threads =
       options.config.inter_op_parallelism_threads();
+LOG(INFO) << "========================> inter_op_parallelism_threads: " << inter_op_parallelism_threads;
   if (inter_op_parallelism_threads == 0) {
     inter_op_parallelism_threads = DefaultNumInterOpThreads();
   }
@@ -124,6 +125,8 @@ int32 DefaultNumIntraOpThreads() {
 #endif  // !defined(ENABLE_MKLDNN_THREADPOOL) && defined(INTEL_MKL)
 int32 NumInterOpThreadsFromSessionOptions(const SessionOptions& options) {
   const int32 inter_op = options.config.inter_op_parallelism_threads();
+LOG(INFO) << "======================> inter_op_parallelism_threads: " << inter_op
+<< ", options.config.intra_op_parallelism_threads: " << options.config.intra_op_parallelism_threads();
   if (inter_op > 0) return inter_op;
   const int32 env_inter_op = GetEnvNumInterOpThreads();
   if (env_inter_op > 0) return env_inter_op;

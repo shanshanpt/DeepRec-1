@@ -190,17 +190,24 @@ def tf_repositories(path_prefix = "", tf_repo_name = ""):
         ],
     )
 
-    tf_http_archive(
+    #tf_http_archive(
+    #    name = "eigen_archive",
+    #    build_file = clean_dep("//third_party:eigen.BUILD"),
+    #    patch_file = clean_dep("//third_party/eigen3:neon_casting_and_gpu_packet.patch"),
+    #    sha256 = "2f046557f4093becf51b44c6339873c18e2f1ea55c4b3f3a08b7d15a1d9c6e5b",  # SHARED_EIGEN_SHA
+    #    strip_prefix = "eigen-4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced",
+    #    urls = [
+    #        "https://storage.googleapis.com/mirror.tensorflow.org/gitlab.com/libeigen/eigen/-/archive/4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced/eigen-4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced.tar.gz",
+    #        "https://gitlab.com/libeigen/eigen/-/archive/4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced/eigen-4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced.tar.gz",
+    #    ],
+    #)
+
+    native.new_local_repository(
         name = "eigen_archive",
-        build_file = clean_dep("//third_party:eigen.BUILD"),
-        patch_file = clean_dep("//third_party/eigen3:neon_casting_and_gpu_packet.patch"),
-        sha256 = "2f046557f4093becf51b44c6339873c18e2f1ea55c4b3f3a08b7d15a1d9c6e5b",  # SHARED_EIGEN_SHA
-        strip_prefix = "eigen-4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced",
-        urls = [
-            "https://storage.googleapis.com/mirror.tensorflow.org/gitlab.com/libeigen/eigen/-/archive/4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced/eigen-4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced.tar.gz",
-            "https://gitlab.com/libeigen/eigen/-/archive/4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced/eigen-4fd5d1477b221fc7daf2b7f1c7e4ee4f04ceaced.tar.gz",
-        ],
+        path = "/home/jiankeng.pt/workspace/shanshanpt/eigen_archive/eigen",
+        build_file = str(Label("//third_party:eigen.BUILD")),
     )
+
 
     tf_http_archive(
         name = "arm_compiler",
@@ -1042,15 +1049,21 @@ def tf_repositories(path_prefix = "", tf_repo_name = ""):
         ],
     )
 
-    tf_http_archive(
+    #tf_http_archive(
+    #    name = "seastar_repo",
+    #    sha256 = "bf97d343149f95983317888dd39a3231639f67c39d826413ea226f9c9c5267d4",
+    #    strip_prefix = "seastar-b9357c525a552ad21b5609622c900e0649921712",
+    #    build_file = str(Label("//third_party:seastar.BUILD")),
+    #    urls = [
+    #        "https://github.com/AlibabaPAI/seastar/archive/b9357c525a552ad21b5609622c900e0649921712.tar.gz",
+    #        "https://github.com/AlibabaPAI/seastar/archive/b9357c525a552ad21b5609622c900e0649921712.tar.gz",
+    #    ],
+    #)
+
+    native.new_local_repository(
         name = "seastar_repo",
-        sha256 = "bf97d343149f95983317888dd39a3231639f67c39d826413ea226f9c9c5267d4",
-        strip_prefix = "seastar-b9357c525a552ad21b5609622c900e0649921712",
+        path = "/home/jiankeng.pt/workspace/shanshanpt/seastar_repo",
         build_file = str(Label("//third_party:seastar.BUILD")),
-        urls = [
-            "https://github.com/AlibabaPAI/seastar/archive/b9357c525a552ad21b5609622c900e0649921712.tar.gz",
-            "https://github.com/AlibabaPAI/seastar/archive/b9357c525a552ad21b5609622c900e0649921712.tar.gz",
-        ],
     )
 
 def tf_bind():

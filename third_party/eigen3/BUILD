@@ -32,6 +32,7 @@ cc_library(
     hdrs = EIGEN3_THIRD_PARTY_HEADERS,
     includes = if_mkl(["./mkl_include"]),
     visibility = ["//visibility:public"],
+    copts = ["-fexceptions"],
     deps = [
         "@eigen_archive//:eigen",
         "@local_config_sycl//sycl",

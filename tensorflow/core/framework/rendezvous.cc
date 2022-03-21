@@ -98,6 +98,9 @@ Status Rendezvous::ParseKey(StringPiece key, ParsedKey* out) {
   for (int i = 0; i < 5; i++) {
     parts[i] = ConsumeNextPart(&s, ';');
   }
+//LOG(INFO) << "====================>>> Rendezvous::ParseKey: parsed = " << out
+//<< ", [0] = " << parts[0] << ", [1] = " << parts[1] << ", [2] = " << parts[2]
+//<< ", [3] = " << parts[3] << ", [4] = " << parts[4];
   if (s.empty() &&          // Consumed the whole string
       !parts[4].empty() &&  // Exactly five parts
       DeviceNameUtils::ParseFullName(parts[0], &out->src) &&

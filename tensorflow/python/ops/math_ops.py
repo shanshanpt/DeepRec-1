@@ -4153,3 +4153,36 @@ def reciprocal_no_nan(x, name=None):
     x = ops.convert_to_tensor(x, name="x")
     one = constant_op.constant(1, dtype=x.dtype.base_dtype, name="one")
     return gen_math_ops.div_no_nan(one, x, name=scope)
+
+@tf_export("math.sparse_count_nonzero")
+def sparse_count_nonzero(input_tensor,
+                         axis=-1,
+                         dtype=dtypes.int64,
+                         name=None):
+  r'''Count nonzeros along specified axis.
+
+  Args:
+    input_tensor: A SparseTensor to reduce. Should be of numeric type, `bool`,
+      or `string`
+    axis: The dimensions to reduce (count nonzeros)
+    dtype: The output dtype; defaults to `tf.int64`.
+    name: A name for the operation (optional).
+
+  Returns:
+    The reduced tensor (number of nonzero values).
+  '''
+  '''
+  with ops.name_scope(name, "sparse_count_nonzero"):
+    indices = input_tensor.indices
+    shape = input_tensor.dense_shape
+    return gen_math_ops.cast(
+        ops.sparse_count_nonzero(indices, shape, axis=axis),
+        dtype=dtype)
+  '''
+
+  with ops.name_scope(name, "sparse_count_nonzero"):
+    indices = input_tensor.indices
+    shape = input_tensor.dense_shape
+    return cast(
+        gen_math_ops.sparse_count_nonzero(indices, shape, axis=axis),
+        dtype=dtype)

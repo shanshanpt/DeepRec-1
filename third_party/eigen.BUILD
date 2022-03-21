@@ -69,6 +69,7 @@ cc_library(
     ],
     includes = ["."],
     visibility = ["//visibility:public"],
+    copts = ["-fexceptions"],
 )
 
 filegroup(

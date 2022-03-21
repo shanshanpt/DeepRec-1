@@ -2820,6 +2820,20 @@ tf_kernel_library(
 )
 
 tf_kernel_library(
+    name = "sparse_count_nonzero",
+    #hdrs = ["sparse_count_nonzero.h"],
+    srcs = ["sparse_count_nonzero.cc"],
+    #gpu_srcs = [
+    #    "sparse_count_nonzero.h",
+    #    "sparse_count_nonzero.cu.cc",
+    #],
+    deps = [
+        "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
+    ],
+)
+
+tf_kernel_library(
     name = "kv_variable_ops",
     hdrs = ["kv_variable_ops.h"],
     srcs = ["kv_variable_ops.cc"],
@@ -6123,6 +6137,7 @@ tf_kernel_library(
         ":training_op_helpers",
         ":variable_ops",
         ":kv_variable_ops",
+        ":sparse_count_nonzero",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core:training_ali_ops_op_lib",

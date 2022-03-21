@@ -15,6 +15,8 @@ limitations under the License.
 
 #include "tensorflow/c/c_api.h"
 
+#include <sys/time.h>
+#include <time.h>
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -465,6 +467,14 @@ static void TF_Run_Helper(
 
 extern "C" {
 
+  uint64_t CNowNanos() {
+    static constexpr uint64_t kSecondsToNanos = 1000ULL * 1000ULL * 1000ULL;
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (static_cast<uint64_t>(ts.tv_sec) * kSecondsToNanos +
+            static_cast<uint64_t>(ts.tv_nsec));
+  }
+
 void TF_Run(TF_DeprecatedSession* s, const TF_Buffer* run_options,
             // Input tensors
             const char** c_input_names, TF_Tensor** c_inputs, int ninputs,
@@ -487,8 +497,20 @@ void TF_Run(TF_DeprecatedSession* s, const TF_Buffer* run_options,
   for (int i = 0; i < ntargets; ++i) {
     target_oper_names[i] = c_target_oper_names[i];
   }
+
+//static int64_t xxxx = 0;
+//int64_t start = 0, end = 0;
+//++xxxx;
+//if (xxxx > 500) {
+//start = CNowNanos();
+//}
   TF_Run_Helper(s->session, nullptr, run_options, input_pairs, output_names,
                 c_outputs, target_oper_names, run_metadata, status);
+//if (xxxx > 500) {
+//end = CNowNanos();
+//LOG(INFO) << "======================> " << 1.0*(end - start)/1000.0/1000.0;
+//}
+
 }
 
 void TF_PRunSetup(TF_DeprecatedSession* s,
@@ -2261,6 +2283,8 @@ void TF_SessionRun(TF_Session* session, const TF_Buffer* run_options,
                    TF_Tensor** output_values, int noutputs,
                    const TF_Operation* const* target_opers, int ntargets,
                    TF_Buffer* run_metadata, TF_Status* status) {
+//int64_t start_pre = 0, end_pre = 0;
+//start_pre = CNowNanos();
   // TODO(josh11b,mrry): Change Session to be able to use a Graph*
   // directly, instead of requiring us to serialize to a GraphDef and
   // call Session::Extend().
@@ -2290,10 +2314,15 @@ void TF_SessionRun(TF_Session* session, const TF_Buffer* run_options,
     target_names[i] = target_opers[i]->node.name();
   }
 
+//int64_t start = 0, end = 0;
+//start = CNowNanos();
   // Actually run.
   TF_Run_Helper(session->session, nullptr, run_options, input_pairs,
                 output_names, output_values, target_names, run_metadata,
                 status);
+//end = CNowNanos();
+//LOG(INFO) << "======================> TF_Run_Helper: " << 1.0*(end - start)/1000.0/1000.0;
+
 }
 
 void TF_SessionPRunSetup(TF_Session* session, const TF_Output* inputs,

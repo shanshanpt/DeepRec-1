@@ -454,10 +454,18 @@ Status Worker::PrepareRecvTensor(const Rendezvous::ParsedKey& parsed,
   // Figures out which device the tensor is hosted on.
   string local_name = DeviceNameUtils::LocalName(parsed.src_device);
   TF_RETURN_IF_ERROR(env_->device_mgr->LookupDevice(local_name, src_dev));
+//LOG(INFO) << ">>>>>>>>>>>>>> parsed = " << &parsed << ", local_name = " << local_name
+//<< ", parsed.src_incarnation = " << parsed.src_incarnation << ", (*src_dev)->attributes().incarnation() = "
+//<< (*src_dev)->attributes().incarnation();
 
   // Does the device have the right incarnation number we expect?
   if (0 != parsed.src_incarnation &&
       (*src_dev)->attributes().incarnation() != parsed.src_incarnation) {
+LOG(ERROR) << ">>>>>>>>>>>>>> parsed = " << &parsed << ", local_name = " << local_name
+<< ", parsed.src_incarnation = " << parsed.src_incarnation << ", (*src_dev)->attributes().incarnation() = "
+<< (*src_dev)->attributes().incarnation();
+
+
     return errors::Aborted(
         "RecvTensor expects a different device incarnation: ",
         parsed.src_incarnation, " vs. ", (*src_dev)->attributes().incarnation(),

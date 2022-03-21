@@ -35,6 +35,12 @@ class ReshapeOp : public OpKernel {
   void Compute(OpKernelContext* context) override {
     const Tensor& input = context->input(0);
     const Tensor& sizes = context->input(1);
+    if (name().find("models/sparse_inputs/Reshape") != std::string::npos ||
+        name().find("PTAAAAAA") != std::string::npos ||
+	name().find("PTBBBBBB") != std::string::npos) {
+//LOG(INFO) << "==================> Reshape: " << name() << ", input: " << input.DebugString()
+//    << ", sizes: " << sizes.DebugString();
+    }
     // Preliminary validation of sizes.
     OP_REQUIRES(context, IsLegacyVector(sizes.shape()),
                 errors::InvalidArgument("sizes input must be 1-D, not ",
@@ -79,6 +85,11 @@ class ReshapeOp : public OpKernel {
 
       const int64 missing = input_num_elements / product;
       if (!input_has_zero_dim) {
+//if (product * missing != input_num_elements) {
+//LOG(INFO) << "=================> Reshape error: " << name() << ", input: " << input.DebugString()
+//    << ", sizes: " << sizes.DebugString();
+//}
+
         OP_REQUIRES(
             context, product * missing == input_num_elements,
             errors::InvalidArgument(

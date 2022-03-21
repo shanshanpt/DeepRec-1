@@ -75,6 +75,7 @@ struct LocalDevice::EigenThreadPoolInfo {
     // Use session setting if specified.
     int32 intra_op_parallelism_threads =
         options.config.intra_op_parallelism_threads();
+LOG(INFO) << "====================> intra_op_parallelism_threads: " << intra_op_parallelism_threads;
     // If no session setting, use environment setting.
     if (intra_op_parallelism_threads == 0) {
       static int env_num_threads = NumIntraOpThreadsFromEnvironment();

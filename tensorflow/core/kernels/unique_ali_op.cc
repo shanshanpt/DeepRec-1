@@ -114,18 +114,26 @@ class UniqueAliOp : public OpKernel {
           &idx, &output, &output_counter, num_outputs(),
           partition_size_, serial_, unique_ratio_hint_,
           map_flag_);
+	  //LOG(ERROR) << "===============> Unique: " << name() << ", input: " << input.DebugString();
     } else {
       const Tensor& axis_tensor = context->input(1);
       UniqueWithAxis<T, TIndex>(context, input,
           axis_tensor, &idx, &output, &output_counter,
           num_outputs(), partition_size_, serial_,
           unique_ratio_hint_, map_flag_);
+	  //LOG(ERROR) << "===============> Unique: " << name() << ", axis_tensor: " << axis_tensor.DebugString();
     }
     context->set_output(0, output);
     context->set_output(1, idx);
     if (num_outputs() > 2) {
       context->set_output(2, output_counter);
-    }
+//	  LOG(ERROR) << "===============> Unique: " << name() 
+//		  << ", output[0]: " << output.DebugString() << ", output[1]: " << idx.DebugString()
+//		  << ", output[2]: " << output_counter.DebugString();
+    } else {
+  //    LOG(ERROR) << "===============> Unique: " << name()
+	//            << ", output[0]: " << output.DebugString() << ", output[1]: " << idx.DebugString();	  
+	}
   }
 
   bool serial_ = false;

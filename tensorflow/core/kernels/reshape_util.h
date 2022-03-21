@@ -24,11 +24,11 @@ namespace tensorflow {
 // Reshapes the input indices and input shape to the target shape.
 void Reshape(OpKernelContext *context, const Tensor &input_indices_in,
              const Tensor &input_shape_in, const Tensor &target_shape_in,
-             int output_indices_idx, int output_shape_idx);
+             int output_indices_idx, int output_shape_idx, std::string kname = "");
 
 void Reshape(OpKernelContext *context, const Tensor &input_indices_in,
              const Tensor &input_shape_in, const Tensor &target_shape_in,
-             Tensor* output_indices, Tensor* output_shape);
+             Tensor* output_indices, Tensor* output_shape, std::string kname = "");
 
 }  // namespace tensorflow
 

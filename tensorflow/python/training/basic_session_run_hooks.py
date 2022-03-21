@@ -716,7 +716,7 @@ class StepCounterHook(session_run_hook.SessionRunHook):
           Summary.Value(tag=self._summary_tag, simple_value=steps_per_sec)
       ])
       self._summary_writer.add_summary(summary, global_step)
-    logging.info("%s: %g", self._summary_tag, steps_per_sec)
+    logging.error("%s: %g", self._summary_tag, steps_per_sec)
 
   def after_run(self, run_context, run_values):
     _ = run_context

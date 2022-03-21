@@ -4,18 +4,25 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "seastar",
+    #includes = [
+    #    ".", "cached-fmt", "cached-c-ares",
+    #    "cached-build/release/gen",
+    #    "cached-build/release/c-ares"],
     includes = [
-        ".", "cached-fmt", "cached-c-ares",
-        "cached-build/release/gen",
-        "cached-build/release/c-ares"],
+        ".", "hack-fmt", "hack-c-ares",
+        "hack-build/release/gen",
+        "hack-build/release/c-ares"],
     srcs = glob(["**/*.cc"],
                 exclude= [
                     "demo/**",
                     "demo-tf/**",
                     "demo-tf-test/**",
-                    "cached-c-ares/c-ares/test/**",
-                    "cached-fmt/test/**",
-                    "cached-dpdk/**",
+                    #"cached-c-ares/c-ares/test/**",
+                    #"cached-fmt/test/**",
+                    #"cached-dpdk/**",
+                    "hack-c-ares/c-ares/test/**",
+                    "hack-fmt/test/**",
+                    "hack-dpdk/**",
                     "tests/**",
                     "build/**",
                     "apps/**",
@@ -35,19 +42,23 @@ cc_library(
                     "net/tls.cc",
                     "net/dns.cc",
                     "core/dpdk_rte.cc",
-                    "cached-build/release/gen/proto/**",
+                    #"cached-build/release/gen/proto/**",
+                    "hack-build/release/gen/proto/**",
                 ]),
     copts = [
         "-std=gnu++1y",
         "-DNO_EXCEPTION_HACK",
+#"-DNO_EXCEPTION_INTERCEPT",
         "-DDEFAULT_ALLOCATOR",
         "-DHAVE_NUMA",
+#"-g"
     ],
     linkopts = [
         "-ldl",
         "-lm",
         "-lrt",
         "-lstdc++fs",
+#"-lunwind",
     ],
     deps = [
         "@boost//:asio",

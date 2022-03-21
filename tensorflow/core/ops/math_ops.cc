@@ -2042,4 +2042,35 @@ REGISTER_OP("LogicalSum")
       return Status::OK();
     });
 
+REGISTER_OP("SparseCountNonzero")
+    .Input("input_indices: T")
+    .Input("input_shape: int64")
+    .Output("output: int32")
+    .Attr("axis: int = -1")
+    .Attr("T: {int64, int32}")
+    .SetShapeFn([](shape_inference::InferenceContext* c) {
+      const Tensor* shape_tensor = c->input_tensor(1);
+      int axis;
+      TF_RETURN_IF_ERROR(c->GetAttr("axis", &axis));
+      if (shape_tensor != nullptr) {
+        auto shape_vec = shape_tensor->flat<int64>();
+        int64 ndims = shape_vec.size();
+        if (axis < 0) {
+          axis = ndims + axis;
+        }
+        std::vector<DimensionHandle> dims;
+        for (int d = 0; d < ndims; ++d) {
+          if (d < axis) {
+            dims.push_back(c->MakeDim(shape_vec(d)));
+          }
+        }
+        c->set_output(0, c->MakeShape(dims));
+      } else {
+        c->set_output(0, c->UnknownShape());
+      }
+      return Status::OK();
+    })
+    .Doc(R"doc(
+)doc");
+
 }  // namespace tensorflow

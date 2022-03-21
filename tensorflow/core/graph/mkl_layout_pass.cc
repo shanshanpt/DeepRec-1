@@ -820,13 +820,19 @@ class MklLayoutRewritePass : public GraphOptimizationPass {
                       FuseMaxPool3D,
                       CopyAttrsPooling});
 
+    //reco_ops_list_ = gtl::FlatSet<string> {
+    //  "BatchMatMul", "BatchMatMulV2", "BiasAdd", "BiasAddGrad",
+    //  "_FusedMatMul", "_FusedBatchMatMul", "_FusedBatchMatMulV2",
+    //  "Identity", "LeakyRelu", "LeakyReluGrad", "MatMul",
+    //  "Relu", "ReluGrad", "Relu6", "Relu6Grad", "Gelu", "GeluGrad",
+    //  "Tanh", "TanhGrad", "Reshape"
+    //};
+    
     reco_ops_list_ = gtl::FlatSet<string> {
-      "BatchMatMul", "BatchMatMulV2", "BiasAdd", "BiasAddGrad",
-      "_FusedMatMul", "_FusedBatchMatMul", "_FusedBatchMatMulV2",
-      "Identity", "LeakyRelu", "LeakyReluGrad", "MatMul",
-      "Relu", "ReluGrad", "Relu6", "Relu6Grad", "Gelu", "GeluGrad",
-      "Tanh", "TanhGrad", "Reshape"
+       "BatchMatMul", "BatchMatMulV2", "_FusedMatMul",
+       "_FusedBatchMatMul", "_FusedBatchMatMulV2", "MatMul"
     };
+
     // Enable "TF_MKL_PRIMITIVE_ONLY_FOR_RECO" by default
     // TF_MKL_PRIMITIVE_ONLY_FOR_RECO=true and reco_ops -> oneDNN replaces eigen ops
     // TF_MKL_PRIMITIVE_ONLY_FOR_RECO=true and not reco_ops -> oneDNN doesn't replace eigen ops

@@ -34,8 +34,16 @@ class SparseReshapeOp : public OpKernel {
   explicit SparseReshapeOp(OpKernelConstruction* context) : OpKernel(context) {}
 
   void Compute(OpKernelContext* context) override {
+    if (name().find("models/sparse_inputs/Reshape") != std::string::npos ||
+        name().find("PTAAAAAA") != std::string::npos ||
+	name().find("PTBBBBBB") != std::string::npos) {
+//LOG(INFO) << "==================> SSSReshape: " << name() << ", input[0]: " << context->input(0).DebugString()
+//    << ", input[1]: " << context->input(1).DebugString()
+//    << ", input[2]: " << context->input(2).DebugString();
+    }
+
     Reshape(context, context->input(0), context->input(1), context->input(2),
-            0 /* output indices index */, 1 /* output shape index */);
+            0 /* output indices index */, 1 /* output shape index */, name());
   }
 };
 

@@ -186,7 +186,7 @@ build:verbs --define=with_verbs_support=true
 build:numa --define=with_numa_support=true
 
 # Options to disable default on features
-build:noaws --define=no_aws_support=true
+#build:noaws --define=no_aws_support=true
 build:nogcp --define=no_gcp_support=true
 build:nohdfs --define=no_hdfs_support=true
 build:nokafka --define=no_kafka_support=true
@@ -234,7 +234,7 @@ build --host_cxxopt=-std=c++14
 #   avoid having to define linux/win separately.
 build:avx_linux --copt=-mavx
 build:avx2_linux --copt=-mavx2
-build:native_arch_linux --copt=-march=native
+build:native_arch_linux --copt=-march=skylake-avx512
 build:avx_win --copt=/arch=AVX
 build:avx2_win --copt=/arch=AVX2
 

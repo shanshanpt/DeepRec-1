@@ -644,10 +644,12 @@ class SparseSegmentReductionOpBase : public OpKernel {
     const Tensor& input = context->input(0);
     const Tensor& indices = context->input(1);
     const Tensor& segment_ids = context->input(2);
-
+//LOG(ERROR) << "=================> SparseSegment: " << name() << ", input[0]: " << input.DebugString()
+//	<< ", input[1]: " << indices.DebugString() << ", input[2]: " << segment_ids.DebugString();
     Index output_rows = -1;
     if (has_num_segments_) {
       const Tensor& num_segments = context->input(3);
+//LOG(ERROR) << "=================> SparseSegment: " << name() << ", input[3]: " << num_segments.DebugString();
 
       OP_REQUIRES(
           context, num_segments.shape().dims() == 0,
@@ -711,10 +713,13 @@ class SparseSegmentReductionOpBase : public OpKernel {
     OutputRow uninitialized_index = 0;
     OutputRow out_index = internal::SubtleMustCopy(segment_vec(start));
 
+//	  LOG(ERROR) << "=================> SparseSegment: " << name() << ", output_rows: " << output_rows;
     while (true) {
       // We initialize next_index to 0 to avoid "warning: 'next_index' may be
       // used uninitialized in this function" in the Mac build (since the
       // compiler isn't smart enough to realize the code is safe).
+//LOG(ERROR) << "=================> SparseSegment: " << name() << ", out_index: " << out_index
+//	<< ", end: " << end << ", num_indices: " << num_indices;
       OutputRow next_index = 0;
       if (end < num_indices) {
         next_index = internal::SubtleMustCopy(segment_vec(end));
