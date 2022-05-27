@@ -274,7 +274,18 @@ class SessionGroup {
     for (int32_t i = 1; i < session_num_; ++i) {
       if (sessions_[i]) delete sessions_[i];
     }
-    if (sessions_[0]) delete sessions_[0];
+    if (session_num_ > 0 && sessions_[0]) delete sessions_[0];
+  }
+
+  Status Close() {
+    for (int32_t i = 1; i < session_num_; ++i) {
+      if (sessions_[i]) {
+        sessions_[i]->Close().IgnoreError();
+      }
+    }
+    if (session_num_ > 0 && sessions_[0]) {
+      sessions_[0]->Close().IgnoreError();
+    }
   }
 
   int32_t GetSessionNum() const {
@@ -334,6 +345,16 @@ class SessionGroup {
     if (!s.ok()) return s;
     return sessions_[id]->Run(run_options, inputs, output_tensor_names,
                               target_node_names, outputs, run_metadata);
+  }
+
+  Session* GetSession(int32_t hint_id = -1) {
+    int32_t id = 0;
+    Status s = GetServingSessionId(&id, hint_id);
+    if (!s.ok()) {
+      LOG(ERROR) << "Get serving session error, use default session[0]";
+      return sessions_[0];
+    }
+    return sessions_[id];
   }
 
  private:
