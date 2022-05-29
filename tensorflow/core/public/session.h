@@ -287,7 +287,7 @@ class SessionGroup {
       sessions_[0]->Close().IgnoreError();
     }
 
-    return Status:OK();
+    return Status::OK();
   }
 
   int32_t GetSessionNum() const {
