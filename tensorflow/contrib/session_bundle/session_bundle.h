@@ -88,6 +88,10 @@ Status LoadSessionBundleFromPathUsingRunOptions(
     const SessionOptions& session_options, const RunOptions& run_options,
     const StringPiece export_dir, SessionBundle* bundle);
 
+Status LoadSessionBundleFromPathUsingRunOptions(
+    const SessionGroupOptions& session_options, const RunOptions& run_options,
+    const StringPiece export_dir, SessionGroupBundle* bundle);
+
 // Sanity checks whether the directory looks like an export directory. Note that
 // we don't try to load any data in this method.
 //
