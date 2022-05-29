@@ -71,7 +71,7 @@ Status LoadSessionBundleOrSavedModelBundle(
     SavedModelBundle* bundle, bool* is_session_bundle = nullptr);
 
 Status LoadSessionBundleOrSavedModelBundle(
-    const SessionOptions& session_options, const RunOptions& run_options,
+    const SessionGroupOptions& session_options, const RunOptions& run_options,
     const string& export_dir, const std::unordered_set<string>& tags,
     SavedModelBundleV2* bundle, bool* is_session_bundle = nullptr);
 
