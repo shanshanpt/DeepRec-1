@@ -286,6 +286,8 @@ class SessionGroup {
     if (session_num_ > 0 && sessions_[0]) {
       sessions_[0]->Close().IgnoreError();
     }
+
+    return Status:OK();
   }
 
   int32_t GetSessionNum() const {

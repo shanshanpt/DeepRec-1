@@ -58,6 +58,22 @@ struct SessionBundle {
   SessionBundle() = default;
 };
 
+struct SessionGroupBundle {
+  std::unique_ptr<SessionGroup> session_group;
+  MetaGraphDef meta_graph_def;
+
+  // A TensorFlow Session does not Close itself on destruction. To avoid
+  // resource leaks, we explicitly call Close on Sessions that we create.
+  ~SessionGroupBundle() {
+    if (session_group) {
+      session_group->Close();
+    }
+  }
+
+  SessionGroupBundle(SessionGroupBundle&&) = default;
+  SessionGroupBundle() = default;
+};
+
 // Loads a manifest and initialized session using the output of an Exporter.
 Status LoadSessionBundleFromPath(const SessionOptions& options,
                                  const StringPiece export_dir,
