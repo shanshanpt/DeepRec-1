@@ -1198,11 +1198,18 @@ Status BaseGPUDeviceFactory::CreateDevices(
       const int64 min_system_memory = MinSystemMemory(available_memory,
                                                       cc_major);
       int virtual_num = virtual_devices.Get(i).memory_limit_mb().size();
+      available_memory = (available_memory-min_system_memory)/1024/1024; // MB
+      std::vector<int64> tmp_memory_limit_mb;
+LOG(INFO) << "===============> available_memory: " << available_memory;
+      for (int i = 0; i < virtual_num; ++i)  {
+        tmp_memory_limit_mb.push_back(available_memory);
+      }
+      /*
       available_memory = (available_memory-min_system_memory)/virtual_num/1024/1024; // MB
       std::vector<int64> tmp_memory_limit_mb;
       for (int i = 0; i < virtual_num; ++i)  {
         tmp_memory_limit_mb.push_back(available_memory);
-      }
+      }*/
       std::transform(tmp_memory_limit_mb.begin(), tmp_memory_limit_mb.end(),
                      std::back_inserter(memory_limit_bytes), [](float mb) {
                        return static_cast<int64>(mb) * (1ll << 20);
@@ -1237,8 +1244,9 @@ Status BaseGPUDeviceFactory::CreateDevices(
       return errors::Internal("Failed to find DeviceLocality for GPU device ",
                               tf_gpu_id.value());
     }
+    // TODO: FIXME
     TF_RETURN_IF_ERROR(CreateGPUDevice(options, name_prefix, tf_gpu_id, bytes,
-                                       it->second, devices));
+                                       it->second, devices, true));
   }
   return Status::OK();
 }
@@ -1268,7 +1276,7 @@ static string GetShortDeviceDescription(PlatformGpuId platform_gpu_id,
 Status BaseGPUDeviceFactory::CreateGPUDevice(
     const SessionOptions& options, const string& name_prefix, TfGpuId tf_gpu_id,
     int64 memory_limit, const DeviceLocality& dev_locality,
-    std::vector<std::unique_ptr<Device>>* devices) {
+    std::vector<std::unique_ptr<Device>>* devices, bool share_memory) {
   CHECK_GE(tf_gpu_id.value(), 0);
   const string device_name =
       strings::StrCat(name_prefix, "/device:GPU:", tf_gpu_id.value());
@@ -1285,8 +1293,15 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
   }
   auto desc = desc_status.ConsumeValueOrDie();
   GPUProcessState* process_state = GPUProcessState::singleton();
-  Allocator* gpu_allocator = process_state->GetGPUAllocator(
-      options.config.gpu_options(), tf_gpu_id, memory_limit);
+  Allocator* gpu_allocator = nullptr;
+  if (share_memory) {
+LOG(INFO) << "===================> GetGlobalGPUAllocator";
+    gpu_allocator = process_state->GetGlobalGPUAllocator(
+        options.config.gpu_options(), tf_gpu_id, memory_limit);
+  } else {
+    gpu_allocator = process_state->GetGPUAllocator(
+        options.config.gpu_options(), tf_gpu_id, memory_limit);
+  }
   if (gpu_allocator == nullptr) {
     return errors::Internal("Failed to get memory allocator for TF GPU ",
                             tf_gpu_id.value(), " with ", memory_limit,

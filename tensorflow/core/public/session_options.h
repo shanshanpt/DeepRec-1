@@ -23,6 +23,7 @@ limitations under the License.
 namespace tensorflow {
 
 class Env;
+class ResourceMgr;
 
 /// Configuration information for a Session.
 struct SessionOptions {
@@ -56,6 +57,8 @@ struct SessionOptions {
 
   /// Configuration options.
   ConfigProto config;
+
+  ResourceMgr* rmgr;
 
   SessionOptions();
 };

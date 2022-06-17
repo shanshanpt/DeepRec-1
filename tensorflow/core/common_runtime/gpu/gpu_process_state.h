@@ -83,6 +83,7 @@ class GPUProcessState {
   // current system environment.  Otherwise returns nullptr.
   virtual Allocator* GetGPUAllocator(const GPUOptions& options,
                                      TfGpuId tf_gpu_id, size_t total_bytes);
+  virtual Allocator* GetGlobalGPUAllocator(const GPUOptions& options,                                                                                                                                        TfGpuId tf_gpu_id, size_t total_bytes);                             
 
   virtual Allocator* GetGpuHostAllocator(int numa_node);
 

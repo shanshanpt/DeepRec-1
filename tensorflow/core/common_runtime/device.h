@@ -57,6 +57,7 @@ class Device : public DeviceBase {
   // Callback type that takes a Status and returns void.
   typedef std::function<void(const Status&)> DoneCallback;
 
+Device(Env* env, const DeviceAttributes& device_attributes, ResourceMgr* rmgr);
   Device(Env* env, const DeviceAttributes& device_attributes);
   ~Device() override;
 

@@ -221,9 +221,16 @@ class DirectSessionFactory : public SessionFactory {
       }
     }
 
+const_cast<SessionOptions*>(&options)->rmgr = new ResourceMgr("localhost");
     std::vector<std::unique_ptr<Device>> devices;
     TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
         options, "/job:localhost/replica:0/task:0", &devices));
+
+for (auto& ddd : devices) {
+LOG(INFO) << "=================> device name: " << ddd->name();
+}
+// /job:localhost/replica:0/task:0/device:GPU:0
+// /job:localhost/replica:0/task:0/device:GPU:1
 
 #ifdef TENSORFLOW_USE_NUMA
     std::vector<unsigned> visible_cpus;

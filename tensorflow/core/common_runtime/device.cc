@@ -30,6 +30,19 @@ Device::Device(Env* env, const DeviceAttributes& device_attributes)
   rmgr_ = new ResourceMgr(parsed_name_.job);
 }
 
+Device::Device(Env* env, const DeviceAttributes& device_attributes, ResourceMgr* rmgr)
+    : DeviceBase(env), device_attributes_(device_attributes) {
+           LOG(INFO) << "=========================> rmgr: " << rmgr;
+  CHECK(DeviceNameUtils::ParseFullName(name(), &parsed_name_))
+      << "Invalid device name: " << name();
+if (name().find("device:GPU:") != std::string::npos) {
+LOG(INFO) << "============> Device share resource: " << name();
+rmgr_ = rmgr;
+} else {
+rmgr_ = new ResourceMgr(parsed_name_.job);
+}
+}
+
 Device::~Device() {
   if (rmgr_ != nullptr) {
     DeleteResourceMgr();
