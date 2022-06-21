@@ -701,6 +701,12 @@ Status ValidateDevice(OpKernelContext* ctx, const ResourceHandle& p);
 
 template <typename T>
 Status ValidateDeviceAndType(OpKernelContext* ctx, const ResourceHandle& p) {
+
+//
+// hack here
+//
+//return Status::OK();
+
   TF_RETURN_IF_ERROR(internal::ValidateDevice(ctx, p));
   auto type_index = MakeTypeIndex<T>();
   if (type_index.hash_code() != p.hash_code()) {

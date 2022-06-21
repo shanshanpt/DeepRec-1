@@ -196,6 +196,22 @@ Status RunOnce(const RunOptions& run_options,
 
   Session::CallableHandle callable_handle;
   TF_RETURN_IF_ERROR(session->MakeCallable(callable_options, &callable_handle));
+
+// hack here.
+LOG(INFO) << "===============> RunOnce";                                                             
+for (auto xxx : target_node_names) {                                                                 
+LOG(INFO) << "=======================> target_node_names: " << xxx;                                  
+}                                                                                                    
+if ("save/restore_all" == target_node_names[0] && target_node_names.size() == 1) {                   
+                                                                                                     
+Status run_status = session->RunCallable(callable_handle, feed_tensors,                              
+                                         outputs, run_metadata);                                     
+run_status = session->RunCallable(callable_handle, feed_tensors,                                     
+                                  outputs, run_metadata);                                            
+session->ReleaseCallable(callable_handle).IgnoreError();                                             
+return run_status;                                                                                   
+}                                                                                                                                                                            
+
   const Status run_status = session->RunCallable(callable_handle, feed_tensors,
                                                  outputs, run_metadata);
   // Be sure to call ReleaseCallable() regardless of the outcome of
@@ -290,6 +306,7 @@ Status RunRestore(const RunOptions& run_options, const string& export_dir,
   AddAssetsTensorsToInputs(export_dir, asset_file_defs, &inputs);
 
   RunMetadata run_metadata;
+LOG(INFO) << "========================> Restore - 0: " << restore_op_name; 
   return RunOnce(run_options, inputs, {}, {string(restore_op_name)},
                  nullptr /* outputs */, &run_metadata, session);
 }

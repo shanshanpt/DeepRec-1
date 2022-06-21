@@ -28,6 +28,7 @@ Device::Device(Env* env, const DeviceAttributes& device_attributes)
   CHECK(DeviceNameUtils::ParseFullName(name(), &parsed_name_))
       << "Invalid device name: " << name();
   rmgr_ = new ResourceMgr(parsed_name_.job);
+LOG(INFO) << "================> name: " << name() << ", rmgr_: " << rmgr_; 
 }
 
 Device::~Device() {

@@ -1198,10 +1198,17 @@ Status BaseGPUDeviceFactory::CreateDevices(
       const int64 min_system_memory = MinSystemMemory(available_memory,
                                                       cc_major);
       int virtual_num = virtual_devices.Get(i).memory_limit_mb().size();
-      available_memory = (available_memory-min_system_memory)/virtual_num/1024/1024; // MB
+/*      available_memory = (available_memory-min_system_memory)/virtual_num/1024/1024; // MB
       std::vector<int64> tmp_memory_limit_mb;
       for (int i = 0; i < virtual_num; ++i)  {
         tmp_memory_limit_mb.push_back(available_memory);
+      }*/
+LOG(INFO) << "===============================> available_memory: " << available_memory;                  
+      available_memory = (available_memory-min_system_memory)/virtual_num/1024/1024; // MB               
+LOG(INFO) << "==================> tmp_memory_limit_mb: " << available_memory;                            
+      std::vector<int64> tmp_memory_limit_mb;                                                            
+      for (int i = 0; i < virtual_num; ++i)  {                                                           
+        tmp_memory_limit_mb.push_back(10240/*available_memory*/);                                        
       }
       std::transform(tmp_memory_limit_mb.begin(), tmp_memory_limit_mb.end(),
                      std::back_inserter(memory_limit_bytes), [](float mb) {
@@ -1237,9 +1244,13 @@ Status BaseGPUDeviceFactory::CreateDevices(
       return errors::Internal("Failed to find DeviceLocality for GPU device ",
                               tf_gpu_id.value());
     }
+LOG(INFO) << "==========================> CreateGPUDevice: " << di << ", name_prefix: " << name_prefix;
     TF_RETURN_IF_ERROR(CreateGPUDevice(options, name_prefix, tf_gpu_id, bytes,
                                        it->second, devices));
   }
+for (auto& ddd : *devices) {                                                                         
+LOG(INFO) << "===============> DEVICE: " << ddd.get() << ", " << ddd->name();                        
+}                     
   return Status::OK();
 }
 

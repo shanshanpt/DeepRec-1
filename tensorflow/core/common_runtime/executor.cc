@@ -456,6 +456,7 @@ class ExecutorStateFactory {
     if (immutable_state.params().multi_devices.size() > 0) {
       int64 curr_stream_id = active_stream_id.fetch_add(1);
       (const_cast<Executor::Args*>(&args))->active_stream_id = curr_stream_id;
+LOG(INFO) << "======================> impl: " << impl << ", active_stream_id: " << curr_stream_id;
     }
 
     // InlineExecuteState
@@ -545,6 +546,8 @@ ExecutorState<PropagatorStateType>::ExecutorState(
     compute_device_ =
         immutable_state_.params().multi_devices[active_stream_id_ % device_count];
   }
+LOG(INFO) << "=======================> ExecutorState::ExecutorState , device:" << compute_device_
+<< ", device-name" << compute_device_->name() << ", active_stream_id_: " << active_stream_id_;           
   if (args.user_intra_op_threadpool != nullptr) {
     Device* device = compute_device_;
     user_device_ = RenamedDevice::NewRenamedDevice(

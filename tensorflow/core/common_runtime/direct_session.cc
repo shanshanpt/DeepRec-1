@@ -1017,10 +1017,14 @@ Status DirectSession::Run(const RunOptions& run_options,
   RunStateArgs run_state_args(run_options.debug_options());
   run_state_args.collective_graph_key =
       run_options.experimental().collective_graph_key();
-
+LOG(INFO) << "=========================> DirectSession::Run";                                        
+for (auto xxx : target_nodes) {                                                                      
+LOG(INFO) << "========================> target_nodes: " << xxx;                                      
+}
   TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
                                           target_nodes, &executors_and_keys,
                                           &run_state_args));
+LOG(INFO) << "====================> executors_and_keys: " << executors_and_keys;
   {
     mutex_lock l(collective_graph_key_lock_);
     collective_graph_key_ = executors_and_keys->collective_graph_key;
@@ -2061,6 +2065,7 @@ Status DirectSession::MakeCallable(const CallableOptions& callable_options,
   std::unique_ptr<ExecutorsAndKeys> ek;
   std::unique_ptr<FunctionInfo> func_info;
   RunStateArgs run_state_args(callable_options.run_options().debug_options());
+LOG(INFO) << "======================> DirectSession::MakeCallable"; 
   TF_RETURN_IF_ERROR(
       CreateExecutors(callable_options, &ek, &func_info, &run_state_args));
   {
@@ -2068,6 +2073,9 @@ Status DirectSession::MakeCallable(const CallableOptions& callable_options,
     *out_handle = next_callable_handle_++;
     callables_[*out_handle] = {std::move(ek), std::move(func_info)};
   }
+for (auto xxx : callable_options.target()) {                                                             
+LOG(INFO) << "================> MakeCallable-target: " << xxx << ", CallableHandle: " << *out_handle;
+}
   return Status::OK();
 }
 
@@ -2142,7 +2150,8 @@ class DirectSession::RunCallableCallFrame : public CallFrameInterface {
     }
     executors_and_keys = callables_[handle].executors_and_keys;
   }
-
+LOG(INFO) << "===========================> executors_and_keys: " << executors_and_keys.get()         
+<< ", executor: " <<  executors_and_keys->items[0].executor.get() << ", CallableHandle: " << handle;
   if (!executors_and_keys) {
     return errors::InvalidArgument(
         "Attempted to run callable after handle was released: ", handle);

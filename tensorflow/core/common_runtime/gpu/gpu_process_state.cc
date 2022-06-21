@@ -123,6 +123,8 @@ Allocator* GPUProcessState::GetGPUAllocator(const GPUOptions& options,
     }
     se::StreamExecutor* stream_exec =
         GpuIdUtil::ExecutorForPlatformGpuId(platform_gpu_id).ValueOrDie();
+LOG(INFO) << "==========================> new GPUMemAllocator: stream_exec: " << stream_exec
+<< ", tf_gpu_id: " << tf_gpu_id << ", platform_gpu_id: " << platform_gpu_id;
     GPUMemAllocator* sub_allocator = new GPUMemAllocator(
         stream_exec,
         platform_gpu_id,
