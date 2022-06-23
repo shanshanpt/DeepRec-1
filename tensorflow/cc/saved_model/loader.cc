@@ -202,7 +202,7 @@ LOG(INFO) << "===============> RunOnce";
 for (auto xxx : target_node_names) {                                                                 
 LOG(INFO) << "=======================> target_node_names: " << xxx;                                  
 }                                                                                                    
-if ("save/restore_all" == target_node_names[0] && target_node_names.size() == 1) {                   
+/*if ("save/restore_all" == target_node_names[0] && target_node_names.size() == 1) {                   
                                                                                                      
 Status run_status = session->RunCallable(callable_handle, feed_tensors,                              
                                          outputs, run_metadata);                                     
@@ -210,7 +210,7 @@ run_status = session->RunCallable(callable_handle, feed_tensors,
                                   outputs, run_metadata);                                            
 session->ReleaseCallable(callable_handle).IgnoreError();                                             
 return run_status;                                                                                   
-}                                                                                                                                                                            
+} */                                                                                                                                                                           
 
   const Status run_status = session->RunCallable(callable_handle, feed_tensors,
                                                  outputs, run_metadata);
@@ -306,7 +306,7 @@ Status RunRestore(const RunOptions& run_options, const string& export_dir,
   AddAssetsTensorsToInputs(export_dir, asset_file_defs, &inputs);
 
   RunMetadata run_metadata;
-LOG(INFO) << "========================> Restore - 0: " << restore_op_name; 
+LOG(INFO) << "========================> Restore - xxx: " << restore_op_name; 
   return RunOnce(run_options, inputs, {}, {string(restore_op_name)},
                  nullptr /* outputs */, &run_metadata, session);
 }
@@ -434,6 +434,13 @@ Status LoadSavedModelInternal(const SessionGroupOptions& session_options,
                  bundle->meta_graph_def.saver_def().restore_op_name(),
                  bundle->meta_graph_def.saver_def().filename_tensor_name(),
                  asset_file_defs, bundle->session_group->GetLeaderSession()));
+for (int x = 1; x < bundle->session_group->GetSessionNum(); ++x) {
+  TF_RETURN_IF_ERROR(                                                                                    
+      RunRestore(run_options, export_dir,                                                                
+                 bundle->meta_graph_def.saver_def().restore_op_name(),                                   
+                 bundle->meta_graph_def.saver_def().filename_tensor_name(),                              
+                 asset_file_defs, bundle->session_group->GetSession(x)));                           
+}
   // Record walltime spent in restoring graph from disk, but postpone metric
   // increments until graph init finishes.
   const uint64 restore_graph_walltime =

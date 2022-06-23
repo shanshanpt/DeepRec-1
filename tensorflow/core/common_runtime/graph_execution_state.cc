@@ -699,8 +699,22 @@ Status GraphExecutionState::InitBaseGraph(std::unique_ptr<Graph>&& new_graph) {
   TF_RETURN_IF_ERROR(OptimizationPassRegistry::Global()->RunGrouping(
       OptimizationPassRegistry::PRE_PLACEMENT, optimization_options));
 
+  LOG(INFO) << "===================================> Before Placer!!!";
+  Device* specified_device = nullptr;
+  if (session_options_->config.device_filters_size()) {
+    LOG(INFO) << "===================> Before Placer, config.device_filters: "
+<< session_options_->config.device_filters(0);
+    for (auto& dev : device_set_->devices()) {
+      LOG(INFO) << "===================> Before Placer, dev: " << dev->name();
+      if (dev->name() == session_options_->config.device_filters(0)) {
+        specified_device = dev;
+        break;
+      }
+    }
+  }
   Placer placer(new_graph.get(), "", flib_def_.get(), device_set_,
-                /* default_local_device= */ nullptr,
+                ///* default_local_device= */ nullptr,
+                specified_device,
                 session_options_ == nullptr ||
                     session_options_->config.allow_soft_placement(),
                 session_options_ != nullptr &&
