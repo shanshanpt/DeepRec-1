@@ -712,8 +712,22 @@ Status GraphExecutionState::InitBaseGraph(std::unique_ptr<Graph>&& new_graph) {
   TF_RETURN_IF_ERROR(OptimizationPassRegistry::Global()->RunGrouping(
       OptimizationPassRegistry::PRE_PLACEMENT, optimization_options));
 
+  Device* default_local_device = nullptr;
+  if (session_options_->config.device_filters_size()) {
+    const auto& filter = session_options_->config.device_filters(0);
+    LOG(INFO) << "====================> Use device filter: " << filter;
+    for (auto& d : device_set_->devices()) {
+      if (d->name() == filter) {
+        LOG(INFO) << "=================> Filter match: " << filter << " - " << d->name();
+        default_local_device = d;
+        break;
+      }
+    }
+  }
+
   Placer placer(new_graph.get(), "", flib_def_.get(), device_set_,
-                /* default_local_device= */ nullptr,
+             //   /* default_local_device= */ nullptr,
+                default_local_device,
                 session_options_ == nullptr ||
                     session_options_->config.allow_soft_placement(),
                 session_options_ != nullptr &&

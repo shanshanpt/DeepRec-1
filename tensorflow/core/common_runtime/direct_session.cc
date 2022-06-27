@@ -257,6 +257,22 @@ class DirectSessionFactory : public SessionFactory {
       EnableCPUAllocatorFullStats(true);
     }
 
+// HACK here!                                                                                            
+//                                                                                                       
+    // Add virtual device here, each virtual device has a stream                                         
+    int multi_streams_num = session_num; //options.config.multi_streams_num();                           
+    if (multi_streams_num > 0) {                                                                         
+      ConfigProto* config = const_cast<ConfigProto*>(&options.config);                                   
+      GPUOptions* gpu_options = config->mutable_gpu_options();                                           
+      auto virtual_devices =                                                                             
+          gpu_options->mutable_experimental()->add_virtual_devices();                                    
+      // will allocate gpu memory for each virtual device later.                                         
+      int32 mem_per_virtual_device = -1;                                                                 
+      for (int i = 0; i < multi_streams_num; ++i) {                                                      
+        virtual_devices->add_memory_limit_mb(-1);                                                        
+      }                                                                                                  
+    }
+
 #ifdef TENSORFLOW_USE_NUMA
     int numa_num = port::NUMANumNodes();
     std::vector<unsigned> visible_cpus;
@@ -289,28 +305,32 @@ class DirectSessionFactory : public SessionFactory {
     DeviceMgr* device_mgr = new DeviceMgr(std::move(devices));
 
     SessionGroup* session_group = new SessionGroup();
+    SessionOptions options0 = options;
+    options0.config.add_device_filters("/job:localhost/replica:0/task:0/device:GPU:0");
 #ifdef TENSORFLOW_USE_NUMA
     DirectSession* leader_session =
-        new DirectSession(options, device_mgr, true, this,
+        new DirectSession(options0, device_mgr, true, this,
                           visible_cpus_per_session[0]);
 #else
     DirectSession* leader_session =
-        new DirectSession(options, device_mgr, true, this);
+        new DirectSession(options0, device_mgr, true, this);
 #endif  // TENSORFLOW_USE_NUMA
     session_group->CreateLeaderSession(leader_session);
     for (int i = 1; i < session_num; ++i) {
       std::vector<std::unique_ptr<Device>> dev;
       TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
-          options, "/job:localhost/replica:0/task:0", &dev, &dev_rmgr_map));
+          options, "/job:localhost/replica:0/task:0", &dev));
       DeviceMgr* dev_mgr = new DeviceMgr(std::move(dev));
+      SessionOptions options_tmp = options;
+      options_tmp.config.add_device_filters("/job:localhost/replica:0/task:0/device:GPU:"+std::to_string(i));
 
 #ifdef TENSORFLOW_USE_NUMA
       DirectSession* follower_session =
-          new DirectSession(options, dev_mgr,true, this,
+          new DirectSession(options_tmp, dev_mgr, true, this,
                             visible_cpus_per_session[i]);
 #else
       DirectSession* follower_session =
-          new DirectSession(options, dev_mgr, true, this);
+          new DirectSession(options_tmp, dev_mgr, true, this);
 #endif  // TENSORFLOW_USE_NUMA
       session_group->CreateFollowerSession(follower_session);
       {
