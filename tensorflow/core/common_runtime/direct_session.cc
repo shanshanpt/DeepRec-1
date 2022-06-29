@@ -260,8 +260,10 @@ class DirectSessionFactory : public SessionFactory {
 // HACK here!                                                                                            
 //                                                                                                       
     // Add virtual device here, each virtual device has a stream                                         
-    int multi_streams_num = session_num; //options.config.multi_streams_num();                           
-    if (multi_streams_num > 0) {                                                                         
+    bool use_multi_stream = options.config.use_multi_stream();
+    //int multi_streams_num = session_num; //options.config.multi_streams_num();                           
+    if (use_multi_stream/*multi_streams_num > 0*/) {          
+      int multi_streams_num = session_num;                                                               
       ConfigProto* config = const_cast<ConfigProto*>(&options.config);                                   
       GPUOptions* gpu_options = config->mutable_gpu_options();                                           
       auto virtual_devices =                                                                             
@@ -296,12 +298,20 @@ class DirectSessionFactory : public SessionFactory {
       dev_name = dev_prefix + "/device:cpu:" + std::to_string(i);
       dev_rmgr_map.device_rmgr_map[dev_name] = shared_rmgr;
     }
+    dev_rmgr_map.device_rmgr_map["/device:CPU:0"] = shared_rmgr;
+    dev_rmgr_map.device_rmgr_map["/device:cpu:0"] = shared_rmgr;
 
     std::vector<std::unique_ptr<Device>> devices;
     TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
         options, "/job:localhost/replica:0/task:0",
         &devices, &dev_rmgr_map));
 
+    if (use_multi_stream) {
+      RemoveUselessDevice(devices, 0);
+    }
+for (auto& xxx : devices) {
+LOG(INFO) << "================+> ddd: " << xxx->name();
+}
     DeviceMgr* device_mgr = new DeviceMgr(std::move(devices));
 
     SessionGroup* session_group = new SessionGroup();
@@ -319,7 +329,14 @@ class DirectSessionFactory : public SessionFactory {
     for (int i = 1; i < session_num; ++i) {
       std::vector<std::unique_ptr<Device>> dev;
       TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
-          options, "/job:localhost/replica:0/task:0", &dev));
+          options, "/job:localhost/replica:0/task:0", &dev, &dev_rmgr_map));
+      if (use_multi_stream) {
+        RemoveUselessDevice(dev, i);
+      }
+LOG(INFO) << "<><><><><><><><><><><>><><><><>";
+for (auto& xxx : dev) {
+LOG(INFO) << "================+> ddd: " << xxx->name();
+}
       DeviceMgr* dev_mgr = new DeviceMgr(std::move(dev));
       SessionOptions options_tmp = options;
       options_tmp.config.add_device_filters("/job:localhost/replica:0/task:0/device:GPU:"+std::to_string(i));
@@ -377,6 +394,23 @@ class DirectSessionFactory : public SessionFactory {
     if (session->options().config.experimental().has_session_metadata()) {
       session_metadata_keys_.erase(GetMetadataKey(
           session->options().config.experimental().session_metadata()));
+    }
+  }
+
+ private:
+  void RemoveUselessDevice(std::vector<std::unique_ptr<Device>>& devices,
+                           int stream_idx) {
+    std::string base_dev_name("/job:localhost/replica:0/task:0/device:GPU:");
+    std::string stream_device(base_dev_name+std::to_string(stream_idx));
+    int idx = 0;
+    while (idx < devices.size()) {
+      // remove useless virtual gpu device
+      if (devices[idx]->name().find(base_dev_name) != std::string::npos &&
+          devices[idx]->name() != stream_device) {
+        devices.erase(devices.begin() + idx);
+      } else {
+        ++idx;
+      }
     }
   }
 

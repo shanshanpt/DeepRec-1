@@ -437,6 +437,11 @@ for (int x = 1; x < bundle->session_group->GetSessionNum(); ++x) {
   TF_RETURN_IF_ERROR(RunInitOp(run_options, export_dir, bundle->meta_graph_def,
                                asset_file_defs, bundle->session_group->GetLeaderSession(),
                                init_op_name));
+ for (int x = 1; x < bundle->session_group->GetSessionNum(); ++x) {
+   TF_RETURN_IF_ERROR(RunInitOp(run_options, export_dir, bundle->meta_graph_def,
+                                asset_file_defs, bundle->session_group->GetSession(x),
+                                init_op_name));
+ }
   load_latency_by_stage->GetCell(export_dir, "restore_graph")
       ->Add(restore_graph_walltime);
   // Record wall time spent in init op.

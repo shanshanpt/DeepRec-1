@@ -572,6 +572,7 @@ message ConfigProto {
   ExecutorPolicy executor_policy = 205;
 
   // Next: 206
+  bool use_multi_stream = 206;
 }
 
 // Options for a single Run() call.
