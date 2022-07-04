@@ -376,12 +376,20 @@ Status XlaDevice::UseGpuDeviceInfo() {
   return GetDeviceContextLocked().status();
 }
 
-Status XlaDevice::TryGetDeviceContext(DeviceContext** out_context) {
+Status XlaDevice::FillContextMap(const Graph* graph,
+                                 DeviceContextMap* device_context_map) {
+  VLOG(1) << "XlaDevice::FillContextMap";
   mutex_lock lock(mu_);
 
   TF_ASSIGN_OR_RETURN(auto device_contexts, GetDeviceContextLocked());
-  device_contexts.first->Ref();
-  *out_context = device_contexts.first;
+
+  device_context_map->resize(graph->num_node_ids());
+  for (Node* n : graph->nodes()) {
+    VLOG(2) << n->id() << " : " << n->type_string() << " : " << n->name();
+    // Allocating on HBM by default.
+    device_contexts.first->Ref();
+    (*device_context_map)[n->id()] = device_contexts.first;
+  }
   return Status::OK();
 }
 

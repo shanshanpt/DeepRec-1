@@ -71,6 +71,9 @@ class BaseGPUDevice : public LocalDevice {
       DeviceContext* device_context,
       const TensorReferenceVector& tensor_refs) override;
 
+  Status FillContextMap(const Graph* graph,
+                        DeviceContextMap* device_context_map) override;
+
   void Compute(OpKernel* op_kernel, OpKernelContext* context) override;
 
   Status Sync() override;

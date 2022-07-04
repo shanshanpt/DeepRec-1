@@ -322,9 +322,9 @@ class ExecutorState {
 
   void MaybeCollectKernelStats();
 
-  // Contains the device context assigned by the device at the beginning of a
-  // step.
-  DeviceContext* device_context_ = nullptr;
+  // Contains a value for [node->id()] for the device context assigned by the
+  // device at the beginning of a step.
+  DeviceContextMap device_context_map_;
 
   const bool vlog_;  // true if VLOG_IS_ON(1). Used to check vlog cheaply.
 
@@ -539,8 +539,8 @@ ExecutorState<PropagatorStateType>::ExecutorState(
 
 template <class PropagatorStateType>
 ExecutorState<PropagatorStateType>::~ExecutorState() {
-  if (device_context_) {
-    device_context_->Unref();
+  for (auto it : device_context_map_) {
+    it->Unref();
   }
   delete slice_reader_cache_;
 }
@@ -559,15 +559,16 @@ template <class PropagatorStateType>
 void ExecutorState<PropagatorStateType>::RunAsync(Executor::DoneCallback done) {
   MaybeCollectKernelStats();
 
+  const Graph* graph = immutable_state_.graph(); //impl_->graph_.get();
   TaggedNodeSeq ready;
 
   // Ask the device to fill in the device context map.
   Device* device = immutable_state_.params().device;
-  const Status get_context_status =
-      device->TryGetDeviceContext(&device_context_);
-  if (!get_context_status.ok()) {
+  const Status fill_status =
+      device->FillContextMap(graph, &device_context_map_);
+  if (!fill_status.ok()) {
     delete this;
-    done(get_context_status);
+    done(fill_status);
     return;
   }
 
@@ -863,9 +864,6 @@ void ExecutorState<PropagatorStateType>::BatchProcess(std::vector<TaggedNode> no
     if (finish_when_deferred_ops_done) Finish();
   };
 
-  // Set the device_context for this device, if it exists.
-  params.op_device_context = device_context_;
-
   Status s;
   NodeExecStatsInterface* stats = nullptr;
 
@@ -885,6 +883,11 @@ void ExecutorState<PropagatorStateType>::BatchProcess(std::vector<TaggedNode> no
     const int id = item.node_id;
 
     propagator_.MaybeMarkStarted(tagged_node);
+
+    // Set the device_context for this node id, if it exists.
+    if (id < device_context_map_.size()) {
+      params.op_device_context = device_context_map_[id];
+    }
 
     params.track_allocations = false;
     stats = nullptr;
