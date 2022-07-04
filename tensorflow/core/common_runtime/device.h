@@ -52,6 +52,11 @@ limitations under the License.
 
 namespace tensorflow {
 
+enum MultiStreamPolicy {
+  NONE = 0,
+  ROUND_ROBIN = 1
+};
+
 class Device : public DeviceBase {
  public:
   // Callback type that takes a Status and returns void.
@@ -157,6 +162,11 @@ class Device : public DeviceBase {
   // by the device.
   virtual Status FillContextMap(const Graph* graph,
                                 DeviceContextMap* device_context_map) {
+    return Status::OK();
+  }
+
+  virtual Status FillContext(DeviceContext** device_context) {
+    *device_context = nullptr;
     return Status::OK();
   }
 

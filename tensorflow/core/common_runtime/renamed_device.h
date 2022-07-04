@@ -154,6 +154,10 @@ class RenamedDevice : public Device {
     return underlying_device_->FillContextMap(graph, device_context_map);
   }
 
+  Status FillContext(DeviceContext** device_context) override {
+    return underlying_device_->FillContext(device_context);
+  }
+
   // Returns the resource manager associated w/ this device.
   ResourceMgr* resource_manager() override {
     if (isolate_session_state_) {

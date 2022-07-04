@@ -41,6 +41,20 @@ class GPUDevice : public BaseGPUDevice {
     }
   }
 
+  GPUDevice(const SessionOptions& options, const string& name,
+            Bytes memory_limit, const DeviceLocality& locality,
+            TfGpuId tf_gpu_id, const string& physical_device_desc,
+            Allocator* gpu_allocator, Allocator* cpu_allocator,
+            int max_streams)
+      : BaseGPUDevice(options, name, memory_limit, locality, tf_gpu_id,
+                      physical_device_desc, gpu_allocator, cpu_allocator,
+                      false /* sync every op */, max_streams) {
+    if (options.config.has_gpu_options()) {
+      force_gpu_compatible_ =
+          options.config.gpu_options().force_gpu_compatible();
+    }
+  }
+
   Allocator* GetAllocator(AllocatorAttributes attr) override {
     CHECK(cpu_allocator_) << "bad place 1";
     if (attr.on_host()) {
@@ -69,6 +83,16 @@ class GPUDeviceFactory : public BaseGPUDeviceFactory {
     return absl::make_unique<GPUDevice>(options, name, memory_limit, locality,
                                         tf_gpu_id, physical_device_desc,
                                         gpu_allocator, cpu_allocator);
+  }
+
+  std::unique_ptr<BaseGPUDevice> CreateGPUDevice(
+      const SessionOptions& options, const string& name, Bytes memory_limit,
+      const DeviceLocality& locality, TfGpuId tf_gpu_id,
+      const string& physical_device_desc, Allocator* gpu_allocator,
+      Allocator* cpu_allocator, int max_streams) override {
+    return absl::make_unique<GPUDevice>(options, name, memory_limit, locality,
+                                        tf_gpu_id, physical_device_desc,
+                                        gpu_allocator, cpu_allocator, max_streams);
   }
 };
 

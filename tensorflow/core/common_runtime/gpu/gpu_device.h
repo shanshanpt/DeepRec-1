@@ -74,6 +74,8 @@ class BaseGPUDevice : public LocalDevice {
   Status FillContextMap(const Graph* graph,
                         DeviceContextMap* device_context_map) override;
 
+  Status FillContext(DeviceContext** device_context) override;
+ 
   void Compute(OpKernel* op_kernel, OpKernelContext* context) override;
 
   Status Sync() override;
@@ -365,11 +367,23 @@ class BaseGPUDeviceFactory : public DeviceFactory {
                          int64 memory_limit, const DeviceLocality& dev_locality,
                          std::vector<std::unique_ptr<Device>>* devices);
 
+  Status CreateGPUDevice(const SessionOptions& options,
+                         const string& name_prefix, TfGpuId tf_gpu_id,
+                         int64 memory_limit, const DeviceLocality& dev_locality,
+                         std::vector<std::unique_ptr<Device>>* devices,
+                         int max_streams);
+
   virtual std::unique_ptr<BaseGPUDevice> CreateGPUDevice(
       const SessionOptions& options, const string& name, Bytes memory_limit,
       const DeviceLocality& dev_locality, TfGpuId tf_gpu_id,
       const string& physical_device_desc, Allocator* gpu_allocator,
       Allocator* cpu_allocator) = 0;
+
+  virtual std::unique_ptr<BaseGPUDevice> CreateGPUDevice(
+      const SessionOptions& options, const string& name, Bytes memory_limit,
+      const DeviceLocality& dev_locality, TfGpuId tf_gpu_id,
+      const string& physical_device_desc, Allocator* gpu_allocator,
+      Allocator* cpu_allocator, int max_streams) = 0;
 
   Status EnablePeerAccess(const std::vector<PlatformGpuId>& visible_gpu_order);
 

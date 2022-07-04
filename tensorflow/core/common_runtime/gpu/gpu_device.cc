@@ -490,15 +490,47 @@ bool BaseGPUDevice::RequiresRecordingAccessedTensors() const {
   return streams_.size() > 1;
 }
 
+Status BaseGPUDevice::FillContext(DeviceContext** device_context) {
+  const size_t num_streams = streams_.size();
+  if (num_streams == 1) {
+    *device_context = nullptr;
+    return Status::OK();
+  }
+
+  // TODO: pass param here
+  MultiStreamPolicy policy = MultiStreamPolicy::ROUND_ROBIN;
+  if (policy == MultiStreamPolicy::NONE) {
+    *device_context = nullptr;
+  } else if (policy == MultiStreamPolicy::ROUND_ROBIN) {
+    static std::atomic<int64_t> counter{0};
+    int64_t idx = counter.fetch_add(1);
+    const size_t num_streams = streams_.size();
+    idx %= num_streams;
+    auto ctx = device_contexts_[idx];
+    ctx->Ref();
+    *device_context = ctx;
+//LOG(INFO) << "===============> FillContext: device_context: " << *device_context
+//<< ", idx = " << idx;
+  } else {
+    *device_context = nullptr;
+    return errors::InvalidArgument("Unkonw multi-stream policy ", policy);
+  }
+
+  return Status::OK();
+}
+
 Status BaseGPUDevice::FillContextMap(const Graph* graph,
                                      DeviceContextMap* device_context_map) {
   VLOG(2) << "FillContextMap";
+//LOG(INFO) << "=====================> FillContextMap - 000: streams_.size=" << streams_.size();
 
   const size_t num_streams = streams_.size();
   // Special case for single stream.
   if (num_streams == 1) {
     return Status::OK();
   }
+//LOG(INFO) << "=====================> FillContextMap - 111";
+
   const int64 before = Env::Default()->NowMicros();
   gpu_stream_util::AssignStreamsOpts opts;
   opts.max_streams = static_cast<int32>(num_streams);
@@ -511,11 +543,14 @@ Status BaseGPUDevice::FillContextMap(const Graph* graph,
   // Fill in the context map.  It is OK for this map to contain
   // duplicate DeviceContexts so long as we increment the refcount.
   device_context_map->resize(graph->num_node_ids());
+static std::atomic<int64_t> iiid{0};
+int64_t cur_iiid = iiid.fetch_add(1);
+cur_iiid %= 2;
   for (Node* n : graph->nodes()) {
-    auto mapped_stream = node_to_stream_id[n->id()];
+    auto mapped_stream = cur_iiid; //node_to_stream_id[n->id()];
     CHECK_LE(mapped_stream, num_streams);
     auto ctx = device_contexts_[mapped_stream];
-    VLOG(3) << "Assigned stream " << node_to_stream_id[n->id()]
+    VLOG(3) << "Assigned stream " << cur_iiid //node_to_stream_id[n->id()]
             << " ==> stream[" << ctx->stream_id() << "] for node id " << n->id()
             << " " << n->type_string() << " " << n->name();
     ctx->Ref();
@@ -1234,6 +1269,12 @@ Status BaseGPUDeviceFactory::CreateDevices(
   TF_RETURN_IF_ERROR(
       GetDeviceLocalities(num_tf_gpus, interconnect_maps, &device_localities));
 
+  int multi_streams_num = 1;
+  if (gpu_options.multi_streams_num() > 0) {
+    multi_streams_num = gpu_options.multi_streams_num();
+  }
+LOG(INFO) << "=============================> multi_streams_num: " << multi_streams_num;
+
   // Build the GPUDevices
   CHECK_EQ(next_tf_gpu_id, memory_limit_bytes.size());
   for (int di = 0; di < num_tf_gpus; ++di) {
@@ -1245,7 +1286,7 @@ Status BaseGPUDeviceFactory::CreateDevices(
                               tf_gpu_id.value());
     }
     TF_RETURN_IF_ERROR(CreateGPUDevice(options, name_prefix, tf_gpu_id, bytes,
-                                       it->second, devices));
+                                       it->second, devices, multi_streams_num));
   }
   return Status::OK();
 }
@@ -1276,6 +1317,14 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
     const SessionOptions& options, const string& name_prefix, TfGpuId tf_gpu_id,
     int64 memory_limit, const DeviceLocality& dev_locality,
     std::vector<std::unique_ptr<Device>>* devices) {
+  return CreateGPUDevice(options, name_prefix, tf_gpu_id, memory_limit,
+                         dev_locality, devices, 1);
+}
+
+Status BaseGPUDeviceFactory::CreateGPUDevice(
+    const SessionOptions& options, const string& name_prefix, TfGpuId tf_gpu_id,
+    int64 memory_limit, const DeviceLocality& dev_locality,
+    std::vector<std::unique_ptr<Device>>* devices, int max_streams) { 
   CHECK_GE(tf_gpu_id.value(), 0);
   const string device_name =
       strings::StrCat(name_prefix, "/device:GPU:", tf_gpu_id.value());
@@ -1315,12 +1364,15 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
   std::unique_ptr<BaseGPUDevice> gpu_device = CreateGPUDevice(
       options, device_name, static_cast<Bytes>(bytes_limit), dev_locality,
       tf_gpu_id, GetShortDeviceDescription(platform_gpu_id, *desc),
-      gpu_allocator, ProcessState::singleton()->GetCPUAllocator(numa_node));
+      gpu_allocator, ProcessState::singleton()->GetCPUAllocator(numa_node),
+      max_streams);
   LOG(INFO) << "Created TensorFlow device (" << device_name << " with "
             << (bytes_limit >> 20) << " MB memory) -> physical GPU ("
             << GetShortDeviceDescription(platform_gpu_id, *desc) << ")";
   TF_RETURN_IF_ERROR(gpu_device->Init(options));
-  gpu_allocator->SetStream(gpu_device->GetStream());
+//
+// DO NOT USE ASYNC !
+//  gpu_allocator->SetStream(gpu_device->GetStream());
   devices->push_back(std::move(gpu_device));
 
   return Status::OK();

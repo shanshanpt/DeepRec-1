@@ -325,6 +325,10 @@ class ExecutorState {
   // Contains a value for [node->id()] for the device context assigned by the
   // device at the beginning of a step.
   DeviceContextMap device_context_map_;
+  // All nodes of current graph use the device context
+  // in multi-stream mode. Before execute graph, we choose
+  // a StreamGroup to serve current executor.
+  DeviceContext* graph_device_context_ = nullptr;
 
   const bool vlog_;  // true if VLOG_IS_ON(1). Used to check vlog cheaply.
 
@@ -542,6 +546,9 @@ ExecutorState<PropagatorStateType>::~ExecutorState() {
   for (auto it : device_context_map_) {
     it->Unref();
   }
+  if (graph_device_context_) {
+    graph_device_context_->Unref();
+  }
   delete slice_reader_cache_;
 }
 
@@ -564,8 +571,10 @@ void ExecutorState<PropagatorStateType>::RunAsync(Executor::DoneCallback done) {
 
   // Ask the device to fill in the device context map.
   Device* device = immutable_state_.params().device;
+//  const Status fill_status =
+//      device->FillContextMap(graph, &device_context_map_);
   const Status fill_status =
-      device->FillContextMap(graph, &device_context_map_);
+      device->FillContext(&graph_device_context_);
   if (!fill_status.ok()) {
     delete this;
     done(fill_status);
@@ -885,7 +894,9 @@ void ExecutorState<PropagatorStateType>::BatchProcess(std::vector<TaggedNode> no
     propagator_.MaybeMarkStarted(tagged_node);
 
     // Set the device_context for this node id, if it exists.
-    if (id < device_context_map_.size()) {
+    if (graph_device_context_) {
+      params.op_device_context = graph_device_context_;
+    } else if (id < device_context_map_.size()) {
       params.op_device_context = device_context_map_[id];
     }
 
