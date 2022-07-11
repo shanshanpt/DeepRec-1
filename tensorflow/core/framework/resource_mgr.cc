@@ -64,7 +64,7 @@ Status MakeResourceHandleToOutput(OpKernelContext* context, int output_index,
 namespace internal {
 
 Status ValidateDevice(OpKernelContext* ctx, const ResourceHandle& p) {
-  if (ctx->device()->attributes().name() != p.device()) {
+  if (false/*ctx->device()->attributes().name() != p.device()*/) {
     return errors::InvalidArgument(
         "Trying to access resource ", p.name(), " located in device ",
         p.device(), " from device ", ctx->device()->attributes().name());

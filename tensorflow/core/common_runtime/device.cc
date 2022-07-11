@@ -27,7 +27,14 @@ Device::Device(Env* env, const DeviceAttributes& device_attributes)
     : DeviceBase(env), device_attributes_(device_attributes) {
   CHECK(DeviceNameUtils::ParseFullName(name(), &parsed_name_))
       << "Invalid device name: " << name();
+LOG(INFO) << "==================> Device::Device-000: " << name();
+if (name().find("/job:localhost/replica:0/task:0/device:GPU") != std::string::npos) {
+static ResourceMgr* mgr = new ResourceMgr("localhost");
+rmgr_ = mgr;
+LOG(INFO) << "==================> Device::Device-111: " << name() << ", rmgr_=" << rmgr_;
+} else {
   rmgr_ = new ResourceMgr(parsed_name_.job);
+}
 }
 
 Device::Device(Env* env, const DeviceAttributes& device_attributes,

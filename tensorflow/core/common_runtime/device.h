@@ -191,7 +191,7 @@ class Device : public DeviceBase {
 
  protected:
   void DeleteResourceMgr() {
-    delete rmgr_;
+//    delete rmgr_;
     rmgr_ = nullptr;
   }
 
