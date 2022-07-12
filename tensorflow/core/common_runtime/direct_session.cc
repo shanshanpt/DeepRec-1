@@ -300,7 +300,12 @@ class DirectSessionFactory : public SessionFactory {
     ResourceMgr* gpu_shared_rmgr = nullptr;
 #if GOOGLE_CUDA
     if (use_multi_stream) {
-      // TODO
+      gpu_shared_rmgr = new ResourceMgr("localhost");
+      std::string gpu_dev_prefix("/job:localhost/replica:0/task:0/device:GPU");
+      for (int i = 0; i < session_num; ++i) {
+        dev_rmgr_map.device_rmgr_map[gpu_dev_prefix+std::to_string(i)] =
+            gpu_shared_rmgr;
+      }
     }
 #endif // GOOGLE_CUDA
 
@@ -316,7 +321,7 @@ class DirectSessionFactory : public SessionFactory {
 #endif // GOOGLE_CUDA
     DeviceMgr* device_mgr = new DeviceMgr(std::move(devices));
 
-    SessionGroup* session_group = new SessionGroup(shared_rmgr);
+    SessionGroup* session_group = new SessionGroup(shared_rmgr, gpu_shared_rmgr);
     SessionOptions leader_options = options;
 #if GOOGLE_CUDA
     if (use_multi_stream) {
