@@ -297,11 +297,23 @@ class DirectSessionFactory : public SessionFactory {
     dev_rmgr_map.device_rmgr_map["/device:CPU:0"] = shared_rmgr;
     dev_rmgr_map.device_rmgr_map["/device:cpu:0"] = shared_rmgr;
 
+    ResourceMgr* gpu_shared_rmgr = nullptr;
+#if GOOGLE_CUDA
+    if (use_multi_stream) {
+      // TODO
+    }
+#endif // GOOGLE_CUDA
+
     std::vector<std::unique_ptr<Device>> devices;
     TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
         options, "/job:localhost/replica:0/task:0",
         &devices, &dev_rmgr_map));
 
+#if GOOGLE_CUDA
+    if (use_multi_stream) {
+      RemoveUselessDevice(devices, 0);
+    }
+#endif // GOOGLE_CUDA
     DeviceMgr* device_mgr = new DeviceMgr(std::move(devices));
 
     SessionGroup* session_group = new SessionGroup(shared_rmgr);
@@ -326,6 +338,11 @@ class DirectSessionFactory : public SessionFactory {
       std::vector<std::unique_ptr<Device>> dev;
       TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
           options, "/job:localhost/replica:0/task:0", &dev, &dev_rmgr_map));
+#if GOOGLE_CUDA
+      if (use_multi_stream) {
+        RemoveUselessDevice(dev, i);
+      }
+#endif // GOOGLE_CUDA
       DeviceMgr* dev_mgr = new DeviceMgr(std::move(dev));
 
       SessionOptions follower_options = options;
@@ -393,6 +410,22 @@ class DirectSessionFactory : public SessionFactory {
   }
 
  private:
+  void RemoveUselessDevice(std::vector<std::unique_ptr<Device>>& devices,
+                           int stream_idx) {
+    std::string base_dev_name("/job:localhost/replica:0/task:0/device:GPU:");
+    std::string stream_device(base_dev_name+std::to_string(stream_idx));
+    int idx = 0;
+    while (idx < devices.size()) {
+      // remove useless virtual gpu device
+      if (devices[idx]->name().find(base_dev_name) != std::string::npos &&
+          devices[idx]->name() != stream_device) {
+        devices.erase(devices.begin() + idx);
+      } else {
+        ++idx;
+      }
+    }
+  }
+
   static string GetMetadataKey(const SessionMetadata& metadata) {
     return absl::StrCat(metadata.name(), "/", metadata.version());
   }
