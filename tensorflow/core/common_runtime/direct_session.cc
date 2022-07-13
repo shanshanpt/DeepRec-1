@@ -272,6 +272,11 @@ class DirectSessionFactory : public SessionFactory {
       for (int i = 0; i < multi_streams_num; ++i) {
         virtual_devices->add_memory_limit_mb(-1);
       }
+    } else {
+      // NOTE: Use single stream in session group mode.
+      // This can't get good performance.
+      LOG(WARNING) << "Use single stream in session group mode,"
+                   << "this can't get good performance.";
     }
 #endif // GOOGLE_CUDA
 
@@ -301,7 +306,7 @@ class DirectSessionFactory : public SessionFactory {
 #if GOOGLE_CUDA
     if (use_multi_stream) {
       gpu_shared_rmgr = new ResourceMgr("localhost");
-      std::string gpu_dev_prefix("/job:localhost/replica:0/task:0/device:GPU");
+      std::string gpu_dev_prefix("/job:localhost/replica:0/task:0/device:GPU:");
       for (int i = 0; i < session_num; ++i) {
         dev_rmgr_map.device_rmgr_map[gpu_dev_prefix+std::to_string(i)] =
             gpu_shared_rmgr;
@@ -343,12 +348,20 @@ class DirectSessionFactory : public SessionFactory {
       std::vector<std::unique_ptr<Device>> dev;
       TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
           options, "/job:localhost/replica:0/task:0", &dev, &dev_rmgr_map));
+      DeviceMgr* dev_mgr = nullptr;
 #if GOOGLE_CUDA
       if (use_multi_stream) {
         RemoveUselessDevice(dev, i);
+        dev_mgr = new DeviceMgr(std::move(dev));
+      } else {
+        // Use the same deivce as leader session, this can't get
+        // good performance, so user should set use_multi_stream true
+        // in session group mode.
+        dev_mgr = device_mgr;
       }
+#else
+      dev_mgr = new DeviceMgr(std::move(dev));
 #endif // GOOGLE_CUDA
-      DeviceMgr* dev_mgr = new DeviceMgr(std::move(dev));
 
       SessionOptions follower_options = options;
 #if GOOGLE_CUDA
