@@ -272,6 +272,9 @@ class DirectSessionFactory : public SessionFactory {
       for (int i = 0; i < multi_streams_num; ++i) {
         virtual_devices->add_memory_limit_mb(-1);
       }
+
+      // We set allow_growth in multi-stream mode.
+      gpu_options->set_allow_growth(true);
     } else {
       // NOTE: Use single stream in session group mode.
       // This can't get good performance.
@@ -305,6 +308,7 @@ class DirectSessionFactory : public SessionFactory {
     ResourceMgr* gpu_shared_rmgr = nullptr;
 #if GOOGLE_CUDA
     if (use_multi_stream) {
+      // Create shared resource for gpu devices
       gpu_shared_rmgr = new ResourceMgr("localhost");
       std::string gpu_dev_prefix("/job:localhost/replica:0/task:0/device:GPU:");
       for (int i = 0; i < session_num; ++i) {
