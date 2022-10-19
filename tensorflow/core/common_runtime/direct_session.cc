@@ -57,6 +57,7 @@ limitations under the License.
 #include "tensorflow/core/graph/graph.h"
 #include "tensorflow/core/graph/graph_constructor.h"
 #include "tensorflow/core/graph/graph_partition.h"
+#include "tensorflow/core/graph/stream_subgraph.h"
 #include "tensorflow/core/graph/subgraph.h"
 #include "tensorflow/core/graph/tensor_id.h"
 #include "tensorflow/core/lib/core/errors.h"
@@ -242,9 +243,42 @@ class DirectSessionFactory : public SessionFactory {
     if (options.config.graph_options().build_cost_model() > 0) {
       EnableCPUAllocatorFullStats(true);
     }
+
     std::vector<std::unique_ptr<Device>> devices;
-    TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
-        options, "/job:localhost/replica:0/task:0", &devices));
+
+    DeviceGlobalThreadPoolOptions dev_global_tp_opt;
+    if (false/*use_multi_streal*/) {
+      int multi_streams_num = 4;
+      ConfigProto* config = const_cast<ConfigProto*>(&options.config);
+      GPUOptions* gpu_options = config->mutable_gpu_options();
+      auto virtual_devices =
+          gpu_options->mutable_experimental()->add_virtual_devices();
+      // will allocate gpu memory for each virtual device later.
+      int32 mem_per_virtual_device = -1;
+      for (int i = 0; i < multi_streams_num; ++i) {
+        virtual_devices->add_memory_limit_mb(-1);
+      }
+
+      // We set allow_growth in multi-stream mode.
+      gpu_options->set_allow_growth(true);
+
+      // Create shared resource for gpu devices
+      DeviceResourceMgrMap dev_rmgr_map;
+      ResourceMgr* gpu_shared_rmgr = new ResourceMgr("localhost");
+      std::string gpu_dev_prefix("/job:localhost/replica:0/task:0/device:GPU:");
+      for (int i = 0; i < multi_streams_num; ++i) {
+        dev_rmgr_map.device_rmgr_map[gpu_dev_prefix+std::to_string(i)] =
+            gpu_shared_rmgr;
+      }
+      // TODO: where to delete gpu_shared_rmgr ???
+      //
+      TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
+          options, "/job:localhost/replica:0/task:0", &devices, &dev_rmgr_map,dev_global_tp_opt));
+    } else {
+      //std::vector<std::unique_ptr<Device>> devices;
+      TF_RETURN_IF_ERROR(DeviceFactory::AddDevices(
+          options, "/job:localhost/replica:0/task:0", &devices));
+    }
 
     std::vector<unsigned> visible_cpus;
     DirectSession* session =
@@ -1014,8 +1048,25 @@ Status DirectSession::RunInternal(
       pool->CostSchedule(std::move(c), cost);
     };
   }
-
+/*
+static std::atomic<int> xxx{0};
+bool print = false;
+auto tmp = xxx.fetch_add(1);
+if (tmp == 100) {
+print = true;
+}
+*/
+//LOG(INFO) << "==============================";
   for (const auto& item : executors_and_keys->items) {
+/*
+if (print) {
+LOG(INFO) << "============================>>> print";
+GraphDef graph_def;                                                                                  
+item.graph->ToGraphDef(&graph_def);                                                                                                                                          
+LOG(INFO) << graph_def.DebugString();                                                                
+}
+*/
+//LOG(INFO) << "===========> run executor item: " << item.device->name();
     // TODO(azaks): support partial run.
     // TODO(azaks): if the device picks its own threadpool, we need to assign
     //     less threads to the main compute pool by default.
@@ -1634,6 +1685,13 @@ Status DirectSession::CreateExecutors(
       options, &graphs, &func_info->flib_def, run_state_args, &ek->input_types,
       &ek->output_types, &ek->collective_graph_key));
 
+/*for (auto& ggg : graphs) {
+LOG(INFO) << "=======================> graph_name: " << ggg.first;
+GraphDef graph_def;
+ggg.second->ToGraphDef(&graph_def); 
+LOG(INFO) << graph_def.DebugString();
+}*/
+
   if (run_state_args->is_partial_run) {
     ek->graph = std::move(run_state_args->graph);
     std::unordered_set<StringPiece, StringPieceHasher> names;
@@ -1673,7 +1731,7 @@ Status DirectSession::CreateExecutors(
 
     Device* device;
     TF_RETURN_IF_ERROR(device_mgr_->LookupDevice(partition_name, &device));
-
+LOG(INFO) << "==================> executor: partition_name: " << partition_name << ", device: " << device->name();
     ek->items.resize(ek->items.size() + 1);
     auto* item = &(ek->items.back());
     auto lib = func_info->proc_flr->GetFLR(partition_name);
@@ -1979,17 +2037,53 @@ Status DirectSession::CreateGraphs(
   popts.flib_def = &client_graph->graph.flib_def();
   popts.control_flow_added = false;
 
+// TODO: partition for multi-stream
+// 1) modify subgraph placement
+// 2) Partition graph and add send/recv
+bool use_multi_stream = true;
+if (false/*use_multi_stream*/) {
+  // TODO: Fake here ^_^, we will use some split algorithms here.
+  for (const auto& n : client_graph->graph.nodes()) {
+    if (n->assigned_device_name() == "/job:localhost/replica:0/task:0/device:GPU:0" && 
+        n->name() == "head/gradients_1/linear/linear_model_1/linear_model/C5/weighted_sum/embedding_lookup_sparse_grad/UnsortedSegmentSum") {
+      // TODO: fake here, modify the device
+      LOG(INFO) << "===============> node name: " << n->name() << ", n.requested_device: " << n->requested_device()
+<< ", n.assigned_device_name: " << n->assigned_device_name();
+      // modify subgraph device
+      (const_cast<Node*>(n))->set_assigned_device_name("/job:localhost/replica:0/task:0/device:GPU:1");
+    }
+  }
+
+  // Split graph to multi-stream subgraph,
+  // We not do split here, just modify nodes' placement.
+	const int num_streams = 4;
+  stream_subgraph::MarkStreamSubGraph2(&client_graph->graph, num_streams);
+	//GraphDef graph_def;
+	//(client_graph->graph).ToGraphDef(&graph_def); 
+	//LOG(INFO) << graph_def.DebugString();
+}
+
   std::unordered_map<string, GraphDef> partitions;
   TF_RETURN_IF_ERROR(Partition(popts, &client_graph->graph, &partitions));
 
+LOG(INFO) << ">>>>>>>>>>>>>>>>>>>>>>>>>";
   std::vector<string> device_names;
   for (auto device : devices_) {
+LOG(INFO) << "=====================> device_name: " << device->name();
     // Extract the LocalName from the device.
     device_names.push_back(DeviceNameUtils::LocalName(device->name()));
   }
 
   // Check for valid partitions.
   for (const auto& partition : partitions) {
+LOG(INFO) << "===================> partition.first: " << partition.first;
+	LOG(INFO) << partition.second.DebugString();
+if (partition.first == "/job:localhost/replica:0/task:0/device:GPU:0" ||
+    partition.first == "/job:localhost/replica:0/task:0/device:GPU:1" ||
+    partition.first == "/job:localhost/replica:0/task:0/device:GPU:2" ||
+    partition.first == "/job:localhost/replica:0/task:0/device:GPU:3") {
+//LOG(INFO) << "NNN: " << partition.second.DebugString();
+}
     const string local_partition_name =
         DeviceNameUtils::LocalName(partition.first);
     if (std::count(device_names.begin(), device_names.end(),
@@ -2001,6 +2095,7 @@ Status DirectSession::CreateGraphs(
           absl::StrJoin(device_names, ","));
     }
   }
+LOG(INFO) << "<<<<<<<<<<<<<<<<<<<<<<<<<";
 
   for (auto& partition : partitions) {
     std::unique_ptr<Graph> device_graph(

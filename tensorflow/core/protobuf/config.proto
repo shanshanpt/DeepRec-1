@@ -24,6 +24,17 @@ enum ExecutorPolicy {
   USE_INLINE_EXECUTOR = 2;
 }
 
+/*message SessionGroupOptions {
+  // Each session will use a independent gpu stream,
+  // now this param only use in SessionGroup.
+  bool use_per_session_stream = 1;
+  // Each session use a independent gpu stream,
+  // and every virtual gpu device has a owned gpu stream,
+  // so we will assign only one virtual gpu device
+  // to a session.
+  repeated string per_session_devices = 2;
+}*/
+
 message GPUOptions {
   // Fraction of the available GPU memory to allocate for each process.
   // 1 means to allocate all of the GPU memory, 0.5 means the process
@@ -205,6 +216,20 @@ message GPUOptions {
   Experimental experimental = 9;
 }
 
+//enum MultiStreamPartitionPolicy {
+//  NO_PARTITION = 0;
+//  USER_DEFINED_PARTITION = 1;
+//  EMBEDDING_GRAPH_PARTITION = 2;
+//  FULL_GRAPH_PARTITION = 3;
+//  // other policy
+//}
+//
+//message MultiStreamOptions {
+//  bool use_multi_stream = 1;
+//  int32 multi_stream_num = 2;
+//  MultiStreamPartitionPolicy partition_policy = 3;
+//}
+
 // Options passed to the graph optimizer
 message OptimizerOptions {
   // If true, optimize the graph using common subexpression elimination.
@@ -256,6 +281,8 @@ message OptimizerOptions {
   int32 micro_batch_num = 9;
   bool do_smart_stage = 10;
   bool do_smart_stage_gpu = 11;
+
+//  MultiStreamOptions multi_stream_opt = 12;
 }
 
 message GraphOptions {
@@ -579,6 +606,9 @@ message ConfigProto {
   // so we will assign only one virtual gpu device
   // to a session.
   repeated string per_session_devices = 207;
+
+  //SessionGroupOptions session_group_opt = 206;
+//  MultiStreamOptions multi_stream_opt = 207;
 
   // Next: 208
 }
