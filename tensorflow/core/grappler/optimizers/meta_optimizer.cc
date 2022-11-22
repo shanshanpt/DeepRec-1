@@ -304,6 +304,7 @@ Status MetaOptimizer::InitializeOptimizers(
         MakeUnique<AutoParallel>(cfg_.auto_parallel().num_replicas()));
   }
   if (cfg_.use_multi_stream() == RewriterConfig::ON) {
+LOG(INFO) << "======================> cfg_.use_multi_stream() == RewriterConfig::ON";
     optimizers->push_back(MakeUnique<MultiStreamOptimizer>(
         cfg_.multi_stream_opts()));
   }

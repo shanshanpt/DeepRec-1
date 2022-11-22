@@ -63,6 +63,8 @@ class GpuIdUtil {
     const int virtual_gpus = gpu_manager->VirtualDeviceCount();
     const int visible_gpus = gpu_manager->VisibleDeviceCount();
     int tf_id = tf_gpu_id.value() % (virtual_gpus / visible_gpus);
+// LOG(INFO) << "=========================> ExecutorForTfGpuId: virtual_gpus=" << virtual_gpus
+//<< ", visible_gpus=" << visible_gpus << ", tf_id=" << tf_id << ", tf_gpu_id.value: " << tf_gpu_id.value();
     return gpu_manager->ExecutorForDevice(platform_gpu_id.value(), tf_id);
   }
   static se::port::StatusOr<se::StreamExecutor*> ExecutorForTfGpuId(
@@ -71,6 +73,7 @@ class GpuIdUtil {
     TF_RETURN_IF_ERROR(
         GpuIdManager::TfToPlatformGpuId(tf_gpu_id, &platform_gpu_id));
     if (EnableMPS()) {
+//LOG(INFO) << "======================> EnableMPS: " << platform_gpu_id << ", " << tf_gpu_id;
       return ExecutorForTfGpuId(platform_gpu_id, tf_gpu_id);
     }
     return ExecutorForPlatformGpuId(platform_gpu_id);

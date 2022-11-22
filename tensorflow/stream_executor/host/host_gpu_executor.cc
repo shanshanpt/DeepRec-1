@@ -45,6 +45,7 @@ HostExecutor::~HostExecutor() {}
 
 port::Status HostExecutor::Init(int device_ordinal,
                                 DeviceOptions device_options) {
+//std::cout << "=========================> HostExecutor::Init\n";
   auto it =
       device_options.non_portable_tags.find("host_thread_stack_size_in_bytes");
   if (it != device_options.non_portable_tags.end()) {

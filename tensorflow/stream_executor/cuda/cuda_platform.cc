@@ -175,6 +175,7 @@ port::StatusOr<StreamExecutor*> CudaPlatform::ExecutorForDevice(
   config.virtual_ordinal = virtual_ordinal;
   config.plugin_config = PluginConfig();
   config.device_options = GetDeviceOptionsFromEnv();
+//LOG(INFO) << "=======================> ExecutorForDevice: " << ordinal << ", " << virtual_ordinal;
   return GetExecutor(config);
 }
 
@@ -200,6 +201,7 @@ port::StatusOr<StreamExecutor*> CudaPlatform::ExecutorForDeviceWithPluginConfig(
 
 port::StatusOr<StreamExecutor*> CudaPlatform::GetExecutor(
     const StreamExecutorConfig& config) {
+//LOG(INFO) << "===========================> GetExecutor: " << config.ordinal << ", " << config.virtual_ordinal;
   return executor_cache_.GetOrCreate(
       config, [&]() { return GetUncachedExecutor(config); });
 }
@@ -208,8 +210,10 @@ port::StatusOr<std::unique_ptr<StreamExecutor>>
 CudaPlatform::GetUncachedExecutor(const StreamExecutorConfig& config) {
   auto executor = absl::make_unique<StreamExecutor>(
       this, absl::make_unique<GpuExecutor>(config.plugin_config),
-      config.ordinal);
+      config.ordinal, config.virtual_ordinal);
+//LOG(INFO) << "-------------------> GetUncachedExecutor: " << config.ordinal << ", " << config.virtual_ordinal;
   auto init_status = executor->Init(config.device_options);
+//LOG(INFO) << "-------------------> GetUncachedExecutor init end!! " ;
   if (!init_status.ok()) {
     return port::Status(
         port::error::INTERNAL,

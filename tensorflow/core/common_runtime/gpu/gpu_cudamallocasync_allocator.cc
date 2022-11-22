@@ -44,6 +44,14 @@ static std::string GetCudaErrorMessage(CUresult result) {
 std::atomic<int> GpuCudaMallocAsyncAllocator::number_instantiated_(0);
 
 GpuCudaMallocAsyncAllocator::GpuCudaMallocAsyncAllocator(
+    PlatformGpuId platform_device_id, TfGpuId tf_gpu_id,
+    size_t pool_size, bool reserve_memory,
+    bool compute_stats)
+    : name_(absl::StrCat("gpu_async_", platform_device_id.value())) {
+  LOG(FATAL) << "Not implement.";
+}
+ 
+GpuCudaMallocAsyncAllocator::GpuCudaMallocAsyncAllocator(
     PlatformGpuId platform_device_id, size_t pool_size, bool reserve_memory,
     bool compute_stats)
     : name_(absl::StrCat("gpu_async_", platform_device_id.value())) {

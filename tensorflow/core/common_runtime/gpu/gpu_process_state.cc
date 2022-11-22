@@ -177,25 +177,44 @@ Allocator* GPUProcessState::GetGPUAllocator(const GPUOptions& options,
     // If true, checks for memory overwrites by writing
     // distinctive patterns on both ends of allocated memory.
     if (useCudaMemoryGuardAllocator()) {
+LOG(INFO) << "=======================> useCudaMemoryGuardAllocator";
+if (use_mps) {
+      gpu_allocator = new GPUDebugAllocator(gpu_allocator, platform_gpu_id, tf_gpu_id);
+      gpu_allocator = new GPUNanResetAllocator(gpu_allocator, platform_gpu_id, tf_gpu_id);
+} else {
       gpu_allocator = new GPUDebugAllocator(gpu_allocator, platform_gpu_id);
       gpu_allocator = new GPUNanResetAllocator(gpu_allocator, platform_gpu_id);
+}
     } else if (useCudaMallocAllocator()) {
+LOG(INFO) << "========================> useCudaMallocAllocator";
       // If true, passes all allocation requests through to cudaMalloc
       // useful for doing memory debugging with tools like cuda-memcheck
       // **WARNING** probably will not work in a multi-gpu scenario
+if (use_mps) {
+gpu_allocator =
+    new GPUcudaMallocAllocator(gpu_allocator, platform_gpu_id, tf_gpu_id);
+} else {
       gpu_allocator =
           new GPUcudaMallocAllocator(gpu_allocator, platform_gpu_id);
+}
     } else if (useCudaMallocAsyncAllocator() ||
                options.experimental().use_cuda_malloc_async()) {
+LOG(INFO) << "=======================> Using CUDA malloc Async allocator";
       LOG(INFO) << "Using CUDA malloc Async allocator for GPU: "
                 << platform_gpu_id;
       // If true, passes all allocation requests through to cudaMallocAsync
       // TODO: useful for doing memory debugging with tools like
       // compute-sanitizer.
       // TODO: **WARNING** probably will not work in a multi-gpu scenario
-      gpu_allocator =
+if (use_mps) {
+gpu_allocator =
+    new GpuCudaMallocAsyncAllocator(platform_gpu_id, tf_gpu_id, total_bytes);
+} else {     
+     gpu_allocator =
           new GpuCudaMallocAsyncAllocator(platform_gpu_id, total_bytes);
+}
     } else if (options.cuda_graph_mode_compatible()) {
+LOG(INFO) << "==========================> options.cuda_graph_mode_compatible";
       LOG(INFO) << "Using CUDA Graph compatible GPUBFCAllocator for GPU: " 
                 << platform_gpu_id;
       gpu_allocator = 

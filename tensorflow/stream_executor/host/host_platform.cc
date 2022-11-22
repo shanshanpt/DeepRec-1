@@ -70,6 +70,7 @@ port::StatusOr<StreamExecutor*> HostPlatform::GetExecutor(
 
 port::StatusOr<std::unique_ptr<StreamExecutor>>
 HostPlatform::GetUncachedExecutor(const StreamExecutorConfig& config) {
+//std::cout << "=======================> HostPlatform::GetUncachedExecutor: " << config.ordinal << ", " << config.virtual_ordinal << "\n";
   auto executor = absl::make_unique<StreamExecutor>(
       this, absl::make_unique<HostExecutor>(config.plugin_config),
       config.ordinal);

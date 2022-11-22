@@ -61,13 +61,16 @@ void MarkEmbeddingGraph(Graph* g, int num_streams) {
   if (!g->IsTrainingGraph()) {
     return;
   }
-
-  //for (Node* n : g->nodes()) {
-  //  if (n->type_string() == "IsVariableInitialized" &&
-  //      n->name() != "global_step/IsVariableInitialized") {
-  //      return;
-  //  }
-  //}
+static int xxx = 0;
+if (xxx++ < 10) 
+LOG(INFO) << "==================+> MarkEmbeddingGraph";
+/*
+  for (Node* n : g->nodes()) {
+    if (n->type_string() == "IsVariableInitialized" &&
+        n->name() != "global_step/IsVariableInitialized") {
+        return;
+    }
+  }*/
 
   std::unordered_map<std::string, Node*> name_to_node;
   // User marked subgraph

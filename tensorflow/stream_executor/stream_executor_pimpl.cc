@@ -138,10 +138,11 @@ static int64 GetMemoryLimitBytes() {
 StreamExecutor::StreamExecutor(
     const Platform *platform,
     std::unique_ptr<internal::StreamExecutorInterface> implementation,
-    int device_ordinal)
+    int device_ordinal, int virtual_device_ordinal)
     : platform_(platform),
       implementation_(std::move(implementation)),
       device_ordinal_(device_ordinal),
+      virtual_device_ordinal_(virtual_device_ordinal),
       background_threads_(new port::ThreadPool(
           port::Env::Default(), "stream_executor", kNumBackgroundThreads)),
       live_stream_count_(0),
@@ -183,7 +184,10 @@ StreamExecutor::~StreamExecutor() {
 }
 
 port::Status StreamExecutor::Init(DeviceOptions device_options) {
-  return implementation_->Init(device_ordinal_, std::move(device_options));
+//  return implementation_->Init(device_ordinal_, std::move(device_options));
+//LOG(INFO) << "====================> StreamExecutor::Init: " << device_ordinal_ << ", " <<virtual_device_ordinal_;
+  return implementation_->Init(device_ordinal_, virtual_device_ordinal_,
+                               std::move(device_options));
 }
 
 port::Status StreamExecutor::Init() { return Init(DeviceOptions::Default()); }

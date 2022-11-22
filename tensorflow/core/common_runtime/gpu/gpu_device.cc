@@ -1405,6 +1405,8 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
 
   std::unique_ptr<BaseGPUDevice> gpu_device;
   if (dev_rmgr_map) {
+//LOG(INFO) << "====================>create gpu device: " << platform_gpu_id.value()
+//<< ", " << tf_gpu_id.value();
     const string physical_name =
         strings::StrCat(name_prefix, "/device:GPU:", platform_gpu_id.value());
     std::unique_ptr<BaseGPUDevice> tmp = CreateGPUDevice(
@@ -1414,6 +1416,8 @@ Status BaseGPUDeviceFactory::CreateGPUDevice(
         dev_rmgr_map, opt);
     gpu_device = std::move(tmp);
   } else {
+//LOG(INFO) << "====================>create gpu device222: " << platform_gpu_id.value()
+//<< ", " << tf_gpu_id.value();
     std::unique_ptr<BaseGPUDevice> tmp = CreateGPUDevice(
         options, device_name, static_cast<Bytes>(bytes_limit), dev_locality,
         tf_gpu_id, GetShortDeviceDescription(platform_gpu_id, *desc),

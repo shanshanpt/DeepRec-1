@@ -42,6 +42,8 @@ limitations under the License.
 #include "tensorflow/stream_executor/platform/logging.h"
 #include "tensorflow/stream_executor/platform/port.h"
 
+#include "tensorflow/core/util/env_var.h" 
+
 bool FLAGS_gpuexec_cuda_driver_inject_init_error = false;
 bool FLAGS_gpuexec_cuda_sync_around_driver_calls = false;
 bool FLAGS_gpuexec_cuda_device_0_only = false;
@@ -73,6 +75,7 @@ namespace gpu {
 
 /* static */ absl::Mutex CreatedContexts::mu_{absl::kConstInit};
 /* static */ int64 CreatedContexts::next_id_ = 1;  // 0 means "no context"
+static std::unordered_map<CUcontext, CUdevice> primary_ctx_used_;
 
 namespace {
 
@@ -367,8 +370,10 @@ bool DeviceOptionsToContextFlags(const DeviceOptions& device_options,
   return true;
 }
 
-/* static */ port::Status GpuDriver::CreateContext(
-    int device_ordinal, CUdevice device, const DeviceOptions& device_options,
+/* static */
+/*
+port::Status GpuDriver::CreateContext(
+    int device_ordinal, int virtual_device_ordinal, CUdevice device, const DeviceOptions& device_options,
     GpuContext** context) {
   *context = nullptr;
 
@@ -399,6 +404,7 @@ bool DeviceOptionsToContextFlags(const DeviceOptions& device_options,
 
   former_context = cuda::CurrentContextOrDie();
   res = cuDevicePrimaryCtxRetain(&new_context, device);
+
   if (res == CUDA_SUCCESS) {
     if (CudaPrimaryContextsMgr::Add(new_context, device)) {
       LOG(INFO) << "Cuda add device primary context " << new_context;
@@ -454,6 +460,122 @@ bool DeviceOptionsToContextFlags(const DeviceOptions& device_options,
 
   return port::Status(port::error::INTERNAL, message);
 }
+*/
+port::Status GpuDriver::CreateContext(
+    int device_ordinal, int virtual_device_ordinal, CUdevice device, const DeviceOptions& device_options,
+    GpuContext** context) {
+  *context = nullptr;
+
+  static bool read_context_count = true;
+  static int64 ctx_count = 4;
+  if (read_context_count) {
+    read_context_count = false; 
+    int64 tmp = 4;
+    tensorflow::ReadInt64FromEnvVar("CONTEXTS_COUNT_PER_GPU", 4, &tmp);
+    ctx_count = tmp;
+    if (ctx_count < 1) {
+      LOG(ERROR) << "Error param CONTEXTS_COUNT_PER_GPU=" << ctx_count << ", use default value 4";
+      ctx_count = 4;
+    }
+  }
+
+  int context_idx = 0;
+  if (virtual_device_ordinal < 0) {
+    LOG(INFO) << "======================> virtual_device_ordinal = " << virtual_device_ordinal;
+  } else {
+    context_idx = virtual_device_ordinal % ctx_count;
+    LOG(INFO) << "======================> virtual_device_ordinal/context_idx/CONTEXTS_COUNT_PER_GPU : "
+<< virtual_device_ordinal << ", " << context_idx << ", " << ctx_count;  
+  }
+
+  int flags = 0;
+  if (!DeviceOptionsToContextFlags(device_options, &flags)) {
+    LOG(WARNING) << "could not convert all device options into context flags";
+  }
+
+  CUresult res;
+  CUcontext former_context;
+  CUcontext new_context;
+
+  unsigned int former_primary_context_flags;
+  int former_primary_context_is_active;
+  CHECK_EQ(CUDA_SUCCESS,
+           cuDevicePrimaryCtxGetState(device, &former_primary_context_flags,
+                                      &former_primary_context_is_active));
+  if (former_primary_context_flags != flags) {
+    if (former_primary_context_is_active) {
+      LOG(ERROR)
+          << "The primary context is active and has a different flag set ("
+          << former_primary_context_flags << ") than the desired flag set ("
+          << flags << ").";
+    } else {
+      CHECK_EQ(CUDA_SUCCESS, cuDevicePrimaryCtxSetFlags(device, flags));
+    }
+  }
+
+  former_context = cuda::CurrentContextOrDie();
+  res = cuDevicePrimaryCtxRetain(&new_context, device);
+
+  /*if (former_context != nullptr) {
+    CUdevice former_device;
+    if (cuCtxGetDevice(&former_device) == CUDA_SUCCESS) {
+      if (former_device == device) {
+        if (former_context == new_context) {
+          VLOG(2) << "The primary context " << former_context << " for device "
+                  << device
+                  << " exists before initializing the StreamExecutor.";
+        } else {
+          LOG(WARNING) << "A non-primary context " << former_context
+                       << " for device " << device
+                       << " exists before initializing the StreamExecutor. The "
+                       << "primary context is now " << new_context << ". We "
+                       << "haven't verified StreamExecutor works with that.";
+        }
+      }
+    } else {
+      LOG(ERROR) << "Failed to get the device of the current context "
+                 << former_context;
+    }
+  }*/
+
+  if (CreatedContexts::OrdinalHas(device_ordinal, context_idx/*virtual_device_ordinal*/)) {
+    new_context = CreatedContexts::OrdinalGet(device_ordinal, context_idx/*virtual_device_ordinal*/);
+    VLOG(1) << "Device " << device_ordinal << " stream " << context_idx/*virtual_device_ordinal*/
+            << " use created context " << new_context;
+  } else if (primary_ctx_used_.find(new_context) == primary_ctx_used_.end()) {
+    // don't create, use primary context
+    VLOG(1) << "No context for device " << device_ordinal << " stream " << context_idx/*virtual_device_ordinal*/
+            << ", use cuDevicePrimaryCtxRetain context " << new_context;
+    primary_ctx_used_.insert(std::make_pair(new_context, device));
+  } else {
+    CHECK_EQ(CUDA_SUCCESS, cuCtxCreate(&new_context, flags, device));
+    VLOG(1) << "No context for device " << device_ordinal << " stream " << context_idx/*virtual_device_ordinal*/
+            << ", cuCtxCreate context " << new_context;
+  }
+
+  CHECK_EQ(CUDA_SUCCESS, cuCtxSetCurrent(former_context));
+
+  if (res == CUDA_SUCCESS) {
+    *context = CreatedContexts::Add(new_context, device_ordinal, context_idx/*virtual_device_ordinal*/);
+    CHECK(*context != nullptr)
+        << "success in this call must entail non-null result";
+    VLOG(2) << "created or reused context " << new_context
+            << " for this thread";
+    return port::Status::OK();
+  }
+
+  string message = "failed call to cuDevicePrimaryCtxRetain: " + ToString(res);
+  if (res == CUDA_ERROR_OUT_OF_MEMORY) {
+    uint64 total_memory;
+    if (GetDeviceTotalMemory(device, &total_memory)) {
+      absl::StrAppend(&message, "; total memory reported: ", total_memory);
+    } else {
+      absl::StrAppend(&message, "; could not query total memory");
+    }
+  }
+
+  return port::Status(port::error::INTERNAL, message);
+}
 
 /* static */ void GpuDriver::DestroyContext(GpuContext* context) {
   if (context == nullptr) {
@@ -465,11 +587,26 @@ bool DeviceOptionsToContextFlags(const DeviceOptions& device_options,
   cuCtxGetDevice(&device);
   cuCtxSetCurrent(former_context);
 
+/*
   if (CudaPrimaryContextsMgr::Has(context->context())) {
     res = cuDevicePrimaryCtxRelease(device);
   } else {
     res = cuCtxDestroy(context->context());
+  }*/
+  bool is_primary_ctx(false);
+  for (auto iter = primary_ctx_used_.begin(); iter != primary_ctx_used_.end();
+       ++iter) {
+    if (iter->second == device) {
+      res = cuDevicePrimaryCtxRelease(device);
+      primary_ctx_used_.erase(iter);
+      is_primary_ctx = true;
+      break;
+    }
   }
+  if (!is_primary_ctx) {
+    res = cuCtxDestroy(context->context());
+  }
+
 
   if (res != CUDA_SUCCESS) {
     LOG(ERROR) << "failed to release CUDA context; leaking: " << ToString(res);

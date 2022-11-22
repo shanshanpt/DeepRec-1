@@ -178,7 +178,13 @@ class StreamExecutorInterface {
   // See the StreamExecutor interface for comments on the same-named methods.
   virtual port::Status Init(int device_ordinal,
                             DeviceOptions device_options) = 0;
-
+  virtual port::Status Init(int device_ordinal,
+                            int virtual_device_ordinal,
+                            DeviceOptions device_options) {
+//std::cout << "======================> interface Init\n";
+    return Init(device_ordinal, device_options);
+  }
+ 
   virtual port::Status GetKernel(const MultiKernelLoaderSpec &spec,
                                  KernelBase *kernel) {
     return port::UnimplementedError("Not Implemented");

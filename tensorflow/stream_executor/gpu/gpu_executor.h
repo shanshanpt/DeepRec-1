@@ -60,7 +60,10 @@ class GpuExecutor : public internal::StreamExecutorInterface {
   ~GpuExecutor() override;
 
   port::Status Init(int device_ordinal, DeviceOptions device_options) override;
-
+  port::Status Init(int device_ordinal,
+                    int virtual_device_ordinal,
+                    DeviceOptions device_options) override;
+ 
   port::Status GetKernel(const MultiKernelLoaderSpec& spec,
                          KernelBase* kernel) override;
   // (supported on CUDA only)

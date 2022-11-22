@@ -154,6 +154,7 @@ void GpuExecutor::UnloadKernel(const KernelBase* kernel) {
 
 port::Status GpuExecutor::Init(int device_ordinal,
                                DeviceOptions device_options) {
+LOG(INFO) << "===========================> GpuExecutor::Init";
   device_ordinal_ = device_ordinal;
 
   auto status = GpuDriver::Init();

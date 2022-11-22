@@ -57,6 +57,7 @@ port::StatusOr<StreamExecutor*> ExecutorCache::GetOrCreate(
     const StreamExecutorConfig& config,
     const std::function<ExecutorFactory>& factory) {
   static int64 cuda_contexts_count = 1;
+//LOG(INFO) << "=================> ExecutorCache::GetOrCreate: " << config.ordinal << ", " << config.virtual_ordinal;
 
   std::string key(std::to_string(config.ordinal));
   // Use MPS
@@ -68,6 +69,10 @@ port::StatusOr<StreamExecutor*> ExecutorCache::GetOrCreate(
         config.virtual_ordinal % cuda_contexts_count;
     key = std::to_string(config.ordinal) + ":" +
         std::to_string(mod_virtual_ordinal);
+//LOG(INFO) << "===========================> ExecutorCache::GetOrCreate: "
+//<< "config.ordinal: " <<config.ordinal << ", config.virtual_ordinal: " << config.virtual_ordinal
+//<< ", mod_virtual_ordinal: " << mod_virtual_ordinal
+//<< ", key: " << key;
   }
   // In the fast path case, the cache already has an entry and we can just
   // return after Get() which only takes a shared lock and not a unique lock.

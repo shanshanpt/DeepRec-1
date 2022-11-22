@@ -129,6 +129,14 @@ GpuExecutor::~GpuExecutor() {
 
 port::Status GpuExecutor::Init(int device_ordinal,
                                DeviceOptions device_options) {
+//LOG(INFO) << "==================> GpuExecutor::Init - 000\n";
+  return Init(device_ordinal, -1, device_options);
+}
+
+port::Status GpuExecutor::Init(int device_ordinal,
+                               int virtual_device_ordinal,
+                               DeviceOptions device_options) {
+//LOG(INFO) << "==================> GpuExecutor::Init - 111: " << device_ordinal << ", " << virtual_device_ordinal;
   device_ordinal_ = device_ordinal;
 
   auto status = GpuDriver::Init();
@@ -141,9 +149,10 @@ port::Status GpuExecutor::Init(int device_ordinal,
     return status;
   }
 
-  status = GpuDriver::CreateContext(device_ordinal_, device_, device_options,
+  status = GpuDriver::CreateContext(device_ordinal_, virtual_device_ordinal, device_, device_options,
                                     &context_);
   if (!status.ok()) {
+//std::cout << "=======================> GpuExecutor::Init: " << status.error_message() << "\n";
     return status;
   }
 

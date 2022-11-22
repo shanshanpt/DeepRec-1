@@ -273,6 +273,7 @@ class DirectSessionFactory : public SessionFactory {
     if (rewrite_config.use_multi_stream() == RewriterConfig::ON) {
       int multi_streams_num =
           rewrite_config.multi_stream_opts().multi_stream_num();
+LOG(INFO) << "==================================> multi_streams_num = " << multi_streams_num;
       ConfigProto* config = const_cast<ConfigProto*>(&options.config);
       GPUOptions* gpu_options = config->mutable_gpu_options();
       auto virtual_devices =
