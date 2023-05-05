@@ -38,6 +38,84 @@ limitations under the License.
 
 namespace tensorflow {
 namespace tensorrt {
+
+namespace {
+void MarkComputeGraph(const Graph* dest, std::vector<bool>& is_var_relate) {
+  // Get the starting node of the coloring algorithm
+  std::queue<const Node*> q;
+  for (Node* n : dest->op_nodes()) {
+    if (n->IsVariable() || n->IsKvVarHandle() || n->IsControlFlow() ||
+        n->type_string() == "VarHandleOp")
+      q.emplace(n);
+  }
+
+  // mark compute graph node
+  while (!q.empty()) {
+    const Node* node = q.front();
+    q.pop();
+    is_var_relate[node->id()] = true;
+    for (auto e : node->out_edges()) {
+      if (!is_var_relate[e->dst()->id()])
+        q.emplace(e->dst());
+    }
+  }
+}
+
+void DealWithNode(const Graph* dest, Node* n,
+    const std::vector<bool>& is_var_relate,
+    std::queue<Node*> &queue,
+    std::unordered_set<Node*>& has_visit_node,
+    std::unordered_set<Node*>& boundary_node_set) {
+  for (auto edge : n->out_edges()) {
+    Node* dst = edge->dst();
+    if (is_var_relate[dst->id()]) {
+      boundary_node_set.emplace(n);
+    } else {
+      queue.emplace(dst);
+    }
+  }
+}
+
+void GetDevicePlacementBoundaryNodes(
+    const Graph* dest, std::unordered_set<Node*> &boundary_node_set) {
+  // mark compute graph node
+  std::vector<bool> is_var_relate(dest->num_node_ids(), false);
+  MarkComputeGraph(dest, is_var_relate);
+
+  // get boundary node
+  std::unordered_set<Node*> has_visit_node;
+  std::queue<Node*> queue;
+  queue.emplace(dest->source_node());
+  while (!queue.empty()) {
+    Node* n = queue.front();
+    queue.pop();
+    if (has_visit_node.find(n) != has_visit_node.end())
+      continue;
+
+    has_visit_node.emplace(n);
+    DealWithNode(dest, n, is_var_relate, queue, has_visit_node,
+                 boundary_node_set);
+  }
+}
+
+void GetLabeledNodes(gtl::FlatSet<string>* node_set, const Graph* g) {
+  std::unordered_set<Node*> boundary_node_set;
+  GetDevicePlacementBoundaryNodes(g, boundary_node_set);
+
+  auto label_node_func = [node_set](Node* n) {
+    node_set->insert(n->name());
+  };
+
+  std::vector<Node* > boundary_node_vec;
+  for (const auto node : boundary_node_set) {
+    boundary_node_vec.emplace_back(node);
+  }
+  ReverseDFSFrom(*g, boundary_node_vec,
+                 std::move(label_node_func), nullptr);
+}
+
+} // namespace
+
 namespace segment {
 using absl::StrAppend;
 using absl::StrCat;
@@ -438,6 +516,11 @@ Status SegmentGraph(const Graph* tf_graph,
     tftrt_node_blacklist.insert(x);
   }
 
+  // User defined special subgraphs which can not be convert to trt graph.
+  // e.g. some sparse lookup subgraphs.
+  auto labeled_node_blacklist = gtl::FlatSet<string>{};
+  GetLabeledNodes(&labeled_node_blacklist, tf_graph);
+
   // Parsing each node of the graph
   std::vector<UnionFind<SimpleNode*>> node_segments;
   for (int i = 0; i < graph->num_node_ids(); ++i) {
@@ -469,6 +552,14 @@ Status SegmentGraph(const Graph* tf_graph,
         unsupported_ops.emplace(node->tf_node()->type_string());
         num_unsupported_ops++;
         node = nullptr;
+      } else if (labeled_node_blacklist.count(node->tf_node()->name())) {
+        LOG(WARNING) << "Blacklisted as TF-TRT candidate, "
+                << "(Op name: " << node->name() << "), "
+                << "(Reason: User labeled nodes blacklist)";
+        // TODO FIXME : delete 
+        unsupported_ops.emplace(node->tf_node()->name());
+        num_unsupported_ops++;
+        node = nullptr; 
       } else {
         VLOG(2) << "Accepted as a TF-TRT candidate, "
                 << "(Op type: " << node->tf_node()->type_string() << "), "
